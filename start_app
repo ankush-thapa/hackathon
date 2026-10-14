@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Starts MySQL (docker), the FastAPI backend and the Expo frontend. Ctrl+C stops both.
+set -euo pipefail
+cd "$(dirname "$0")"
+
+if [ ! -x venv/bin/python ]; then
+    echo "Setting up Python venv..."
+    python3 -m venv venv
+    venv/bin/pip install -q -r requirements.txt
+fi
+if [ ! -d frontend/node_modules ]; then
+    echo "Installing frontend dependencies..."
+    npm --prefix frontend install
+fi
+
+echo "Starting MySQL..."
+docker compose up -d db
+until docker compose exec -T db mysqladmin ping -uuser -ppassword --silent >/dev/null 2>&1; do sleep 1; done
+
+cleanup() {
+    echo "Stopping backend..."
+    [ -n "${api_pid:-}" ] && kill "$api_pid" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+echo "Starting backend on http://localhost:8000"
+venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+api_pid=$!
+
+# Frontend runs in the foreground so Expo's keys work: w = web, i = iOS, a = Android.
+npm --prefix frontend start
