@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.repositories.user_repo import DuplicateUserError, UserRepository
-from app.schemas.auth import RegisterRequest, RegisterResponse
-from app.services.auth_service import AuthService
+from app.schemas.auth import RegisterRequest, RegisterResponse, LoginRequest, LoginResponse
+from app.services.auth_service import AccountBlockedError, AuthService, InvalidCredentialsError
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -24,3 +24,22 @@ def register(req: RegisterRequest, service: AuthService = Depends(get_auth_servi
         email=user.email,
         phone=user.phone_number,
     )
+
+
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    responses={401: {"description": "Invalid credentials"}, 403: {"description": "Account blocked"}},
+)
+def login(req: LoginRequest, response: Response, service: AuthService = Depends(get_auth_service)):
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        id_user, token, expires_in = service.login(req)
+    except InvalidCredentialsError:
+        # One message for unknown account, wrong password, or deleted account.
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail="invalid credentials", headers={"WWW-Authenticate": "Bearer"}
+        )
+    except AccountBlockedError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="account blocked")
+    return LoginResponse(accessToken=token, expiresIn=expires_in, userId=str(id_user))
