@@ -23,7 +23,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
+# persistAuthorization keeps the token entered under Authorize across /docs reloads.
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    lifespan=lifespan,
+    swagger_ui_parameters={"persistAuthorization": True},
+)
 
 app.add_middleware(
     CORSMiddleware,

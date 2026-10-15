@@ -11,7 +11,12 @@ from app.repositories.session_repo import SessionRepository
 from app.repositories.user_repo import UserRepository
 from app.services.auth_service import AuthService, CurrentSession, InvalidSessionError, SessionReason
 
-bearer_scheme = HTTPBearer(auto_error=False)
+bearer_scheme = HTTPBearer(
+    auto_error=False,
+    scheme_name="AccessToken",
+    bearerFormat="JWT",
+    description="Paste the `accessToken` from POST /v1/auth/login (without the word Bearer).",
+)
 
 SESSION_ERROR_MESSAGES = {
     SessionReason.token_missing: "missing bearer token",
