@@ -22,3 +22,4 @@ def test_existing_email_is_not_duplicated(seeded_db):
     seeded_db.execute(text("UPDATE `user` SET id_user = 1 WHERE id_user = 236357292134498304"))
     seeded_db.commit()
     assert load_user_fixtures(seeded_db) == 0  # same email under another id: skipped, not a unique-key error
+

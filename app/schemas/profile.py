@@ -37,3 +37,9 @@ class ProfileResponse(BaseModel):
     about: str | None
     dateOfBirth: date | None
     gender: Gender | None
+
+
+class MyProfileResponse(ProfileResponse):
+    age: int | None  # whole years, computed from dateOfBirth
+    email: str | None
+    phoneNumber: str | None

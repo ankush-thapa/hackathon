@@ -66,7 +66,12 @@ export function signup(input: SignupInput): Promise<RegisterResponse> {
 }
 
 // --- POST /v1/auth/login ----------------------------------------------------------------
-type LoginResponse = { accessToken: string; tokenType?: string; expiresIn: number; userId: string };
+type LoginResponse = {
+    accessToken: string;
+    tokenType?: string;
+    expiresIn: number;
+    userId: string;
+};
 
 /** Logs in with an email or phone number and stores the session on success. */
 export async function login(identifier: string, password: string): Promise<Session> {

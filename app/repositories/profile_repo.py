@@ -1,4 +1,4 @@
-from sqlalchemy import text
+from sqlalchemy import Date, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,10 @@ _INSERT_PROFILE = text(
     "INSERT INTO user_profile (id_user, full_name, photo_url, about, date_of_birth, gender) "
     "VALUES (:id_user, :full_name, :photo_url, :about, :date_of_birth, :gender)"
 )
+_GET_PROFILE = text(
+    "SELECT p.id_user, p.full_name, p.photo_url, p.about, p.date_of_birth, p.gender, u.email, u.phone_number "
+    "FROM user_profile p JOIN `user` u ON u.id_user = p.id_user WHERE p.id_user = :id_user"
+).columns(date_of_birth=Date)
 _UPDATE_PROFILE = text(
     "UPDATE user_profile SET full_name = :full_name, photo_url = :photo_url, about = :about, "
     "date_of_birth = :date_of_birth, gender = :gender WHERE id_user = :id_user"
@@ -46,3 +50,8 @@ class ProfileRepository:
     def _update(self, params: dict) -> None:
         self._db.execute(_UPDATE_PROFILE, params)
         self._db.commit()
+
+    def get(self, id_user: int) -> dict | None:
+        """The user's profile joined with their contact details, or None if no profile has been saved yet."""
+        row = self._db.execute(_GET_PROFILE, {"id_user": id_user}).mappings().first()
+        return dict(row) if row else None
