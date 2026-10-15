@@ -1,7 +1,7 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Login: optional leading +, then 7–15 digits. Spaces, dashes and brackets are ignored.
 const PHONE_RE = /^\+?\d{7,15}$/;
-// Sign-up: must match the backend's E.164 rule (+, country code, 8–15 digits in total).
+// Must match the backend's E.164 rule (+, country code, 8–15 digits in total).
 const E164_RE = /^\+[1-9]\d{7,14}$/;
 
 export const MIN_PASSWORD_LENGTH = 8;
@@ -16,7 +16,11 @@ export const isPhone = (value: string) => PHONE_RE.test(normalizePhone(value.tri
 export function validateIdentifier(value: string): string | undefined {
     const v = value.trim();
     if (!v) return 'Enter your email or phone number';
-    if (v.includes('@') ? !isEmail(v) : !isPhone(v)) return 'Enter a valid email or phone number';
+    if (v.includes('@')) return isEmail(v) ? undefined : 'Enter a valid email';
+    const phone = normalizePhone(v);
+    if (!/^\+?\d+$/.test(phone)) return 'Enter a valid email or phone number';
+    if (!phone.startsWith('+')) return 'Add your country code to the phone number, e.g. +971';
+    if (!E164_RE.test(phone)) return 'Enter a valid phone number with country code';
 }
 
 export function validateEmail(value: string): string | undefined {

@@ -1,6 +1,7 @@
 import { Redirect } from 'expo-router';
+import { getSession } from '../services/session';
 
-// Login is the landing page. Once sessions exist, redirect signed-in users to /home here.
+// Login is the landing page; users with a valid session skip straight to the dashboard.
 export default function Index() {
-    return <Redirect href="/login" />;
+    return <Redirect href={getSession() ? '/dashboard' : '/login'} />;
 }
