@@ -17,7 +17,7 @@ export type Ride = {
     pricePerSeat: number;
 };
 
-export const CURRENCY = 'AED';
+export { CURRENCY } from '../constants/Currency';
 
 // Dates are relative to "now" so upcoming rides always stay upcoming.
 const at = (dayOffset: number, hour: number, minute = 0) => {

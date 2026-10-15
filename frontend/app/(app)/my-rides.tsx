@@ -4,6 +4,9 @@ import { useRouter } from 'expo-router';
 import { Badge, Card, EmptyState, Screen, SecondaryButton } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { departureLabel } from '../../services/format';
+import { notifyBookingCancelled } from '../../services/notifications';
+import { useProfile } from '../../services/profile';
+import { CURRENCY } from '../../constants/Currency';
 import {
     BookingStatus,
     MyBooking,
@@ -20,7 +23,6 @@ import {
 } from '../../services/myRides';
 
 const theme = Colors.light;
-const CURRENCY = 'AED';
 
 type Kind = 'offered' | 'booked';
 type Tone = 'neutral' | 'brand' | 'success' | 'muted';
@@ -211,7 +213,7 @@ function OfferedCard({ ride }: { ride: MyRide }) {
             </View>
             <Route ride={ride} />
             <Text style={styles.meta}>
-                {departureLabel(ride.departure_time)} · {booked}/{ride.total_seats} seats booked · {CURRENCY} {money(ride.price_per_seat)}/seat
+                {departureLabel(ride.departure_time)} · {booked}/{ride.total_seats} seats booked · {CURRENCY}{money(ride.price_per_seat)}/seat
             </Text>
             {car ? <Text style={styles.meta}>{car}</Text> : null}
             {ride.notes ? <Text style={styles.note}>“{ride.notes}”</Text> : null}
@@ -236,7 +238,7 @@ function BookingCard({ booking, canCancel, onCancelled }: {
             </View>
             <Route ride={ride} />
             <Text style={styles.meta}>
-                {departureLabel(ride.departure_time)} · {plural(booking.seats_booked, 'seat')} · {CURRENCY} {money(booking.total_amount)} total
+                {departureLabel(ride.departure_time)} · {plural(booking.seats_booked, 'seat')} · {CURRENCY}{money(booking.total_amount)} total
             </Text>
             <Text style={styles.meta}>With {driver}{car ? ` · ${car}` : ''}</Text>
             {booking.rider_note ? <Text style={styles.note}>“{booking.rider_note}”</Text> : null}
@@ -248,6 +250,7 @@ function BookingCard({ booking, canCancel, onCancelled }: {
 /** Two-step cancel so a stray tap doesn't cancel (no native confirm dialogs). */
 function CancelBooking({ booking, onCancelled }: { booking: MyBooking; onCancelled: (id: string) => void }) {
     const [confirming, setConfirming] = useState(false);
+    const profile = useProfile();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -257,6 +260,17 @@ function CancelBooking({ booking, onCancelled }: { booking: MyBooking; onCancell
         try {
             await cancelBooking(booking.id_booking);
             onCancelled(booking.id_booking);
+            // Tell the driver (best effort; the cancellation already succeeded).
+            notifyBookingCancelled({
+                driverId: booking.ride.driver.id_user,
+                rideId: booking.ride.id_ride,
+                bookingId: booking.id_booking,
+                riderName: profile.fullName || 'A rider',
+                seats: booking.seats_booked,
+                from: booking.ride.source.name,
+                to: booking.ride.destination.name,
+                departure: booking.ride.departure_time,
+            });
         } catch (e) {
             setError(e instanceof MyRidesError ? e.message : 'Could not cancel. Please try again.');
             setBusy(false);

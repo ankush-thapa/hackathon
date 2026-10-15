@@ -6,6 +6,9 @@ import { TextField } from '../../components/TextField';
 import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTitle, Stepper, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { dayLabel, nextDays, timeLabel } from '../../services/format';
+import { notifyBookingRequested } from '../../services/notifications';
+import { useProfile } from '../../services/profile';
+import { CURRENCY } from '../../constants/Currency';
 import {
     DaySearch,
     RideSearchError,
@@ -20,7 +23,6 @@ import {
 } from '../../services/rideSearch';
 
 const theme = Colors.light;
-const CURRENCY = 'AED';
 const DAYS = nextDays(7);
 
 const money = (v: string | number) => {
@@ -248,13 +250,25 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
     const total = Number(ride.pricePerSeat) * seats;
     const car = ride.vehicle ? `${ride.vehicle.color} ${ride.vehicle.make} ${ride.vehicle.model}` : null;
     const driver = ride.driver.fullName || 'Driver';
+    const profile = useProfile();
 
     const book = async () => {
         setBusy(true);
         setError(null);
         try {
-            await bookRide(ride.idRide, seats, note);
+            const booking = await bookRide(ride.idRide, seats, note);
             setStep('done');
+            // Tell the driver (best effort; the booking already succeeded).
+            notifyBookingRequested({
+                driverId: ride.driver.userId,
+                rideId: ride.idRide,
+                bookingId: booking.id_booking,
+                riderName: profile.fullName || 'A rider',
+                seats,
+                from: ride.source.name,
+                to: ride.destination.name,
+                departure: ride.departureTime,
+            });
         } catch (e) {
             onAuthError(e);
             setError(e instanceof RideSearchError ? e.message : 'Could not send your request. Please try again.');
@@ -267,7 +281,7 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         <Card>
             <View style={styles.cardTop}>
                 <Text style={styles.time}>{timeLabel(new Date(ride.departureTime))}</Text>
-                <Text style={styles.price}>{CURRENCY} {money(ride.pricePerSeat)}<Text style={styles.meta}>/seat</Text></Text>
+                <Text style={styles.price}>{CURRENCY}{money(ride.pricePerSeat)}<Text style={styles.meta}>/seat</Text></Text>
             </View>
             <View style={styles.route}>
                 <View style={styles.dots}>
@@ -306,12 +320,12 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
                         maxLength={255}
                     />
                     <FormError message={error} />
-                    <PrimaryButton title={`Request ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY} ${money(total)}`} onPress={book} loading={busy} />
+                    <PrimaryButton title={`Request ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY}${money(total)}`} onPress={book} loading={busy} />
                     {!busy ? <TextLink label="Cancel" onPress={() => { setStep('idle'); setError(null); }} /> : null}
                 </View>
             ) : (
                 <View style={{ marginTop: 8 }}>
-                    <SecondaryButton title={`Book ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY} ${money(total)}`} onPress={() => setStep('confirm')} />
+                    <SecondaryButton title={`Book ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY}${money(total)}`} onPress={() => setStep('confirm')} />
                 </View>
             )}
         </Card>
