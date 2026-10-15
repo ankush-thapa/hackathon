@@ -185,3 +185,26 @@ export const notifyRideModified = (a: RideRef & { riderIds: string[]; driverName
         toUserId: id, type: 'ride_modified', rideId: a.rideId,
         message: `${a.driverName} updated the ride ${route(a)}. ${a.change}`,
     })));
+
+// --- Where tapping a notification goes -----------------------------------------------------------
+// Driver-side events open the offered ride (/my-rides/[id]); rider-side events open the booking
+// (/my-rides/booking/[id]). booking_cancelled goes to either side: the backend tells the driver
+// when a rider cancels ("…cancelled their booking…") and the rider when the driver does
+// ("…cancelled your booking…").
+const DRIVER_TYPES: NotificationType[] = ['ride_created', 'booking_requested'];
+const RIDER_TYPES: NotificationType[] = ['booking_accepted', 'booking_rejected', 'ride_cancelled', 'ride_modified'];
+
+export type NotificationTarget =
+    | { pathname: '/my-rides/[id]'; params: { id: string } }
+    | { pathname: '/my-rides/booking/[id]'; params: { id: string } }
+    | { pathname: '/my-rides' };
+
+export function notificationTarget(n: Notification): NotificationTarget {
+    const forDriver =
+        DRIVER_TYPES.includes(n.type) || (n.type === 'booking_cancelled' && !/cancelled your booking/i.test(n.message));
+    if (forDriver && n.idRide) return { pathname: '/my-rides/[id]', params: { id: n.idRide } };
+    if ((RIDER_TYPES.includes(n.type) || n.type === 'booking_cancelled') && n.idBooking) {
+        return { pathname: '/my-rides/booking/[id]', params: { id: n.idBooking } };
+    }
+    return { pathname: '/my-rides' };
+}

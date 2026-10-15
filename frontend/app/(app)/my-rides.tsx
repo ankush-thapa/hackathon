@@ -8,7 +8,7 @@ import { RideRequestList } from '../../components/RideRequestRow';
 import { departureLabel } from '../../services/format';
 import { useProfile } from '../../services/profile';
 import { CURRENCY } from '../../constants/Currency';
-import { RideRequest, fetchPendingRequests } from '../../services/rideRequests';
+import { RideRequest, fetchRequestsFor } from '../../services/rideRequests';
 import {
     BookingStatus,
     MyBooking,
@@ -75,10 +75,12 @@ export default function MyRidesScreen() {
         const id = ++reqId.current;
         setState(initial());
         try {
-            const [page, pending] = await Promise.all([
-                kind === 'offered' ? fetchMyRides(scope) : fetchMyBookings(scope),
-                kind === 'offered' && scope === 'upcoming' ? fetchPendingRequests() : Promise.resolve({}),
-            ]);
+            const page = kind === 'offered' ? await fetchMyRides(scope) : await fetchMyBookings(scope);
+            // Load request details only for rides that have pending requests.
+            const withRequests = kind === 'offered' && scope === 'upcoming'
+                ? (page.items as MyRide[]).filter(r => r.requests.pending_requests > 0).map(r => r.id_ride)
+                : [];
+            const pending = withRequests.length ? await fetchRequestsFor(withRequests) : {};
             if (id === reqId.current) {
                 setRequests(pending);
                 setState({ items: page.items, next: page.next_page, loading: false, loadingMore: false, error: null });
@@ -243,8 +245,6 @@ function OfferedCard({ ride, requests, onHandled, onAuthError }: {
                 <View style={styles.requestsBox}>
                     <RideRequestList requests={requests} onHandled={onHandled} onAuthError={onAuthError} />
                 </View>
-            ) : pending && ride.status === 'open' ? (
-                <Text style={styles.hint}>Requests made before this update can't be shown here yet.</Text>
             ) : null}
         </Card>
     );

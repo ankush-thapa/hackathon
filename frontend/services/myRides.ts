@@ -129,3 +129,16 @@ export type EditRidePayload = { id_vehicle?: string; id_source_station?: number;
     price_per_seat?: string | number; notes?: string | null };
 export const editOfferedRide = (idRide: string, payload: EditRidePayload) =>
     request(`/v1/rides/${idRide}`, { method: 'PATCH', body: JSON.stringify(payload) });
+
+/**
+ * PATCH /v1/rides/{id} with only total_seats. The API keeps every other field as is, rejects going
+ * below accepted seats (409) or above the vehicle's capacity (422), and notifies booked riders.
+ */
+export async function updateRideSeats(idRide: string, totalSeats: number) {
+    const res = await request<{ id_ride: string; total_seats: number; available_seats: number }>(`/v1/rides/${idRide}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ total_seats: totalSeats }),
+    });
+    rideCache.delete(idRide); // force a fresh read
+    return res;
+}

@@ -6,7 +6,7 @@ import { Colors } from '../../constants/Colors';
 import { ApiError } from '../../services/api';
 import { timeAgo } from '../../services/format';
 import {
-    NOTIFICATION_META, Notification, markAllRead, markRead, refreshNotifications, useNotifications,
+    NOTIFICATION_META, Notification, markAllRead, markRead, notificationTarget, refreshNotifications, useNotifications,
 } from '../../services/notifications';
 
 const theme = Colors.light;
@@ -36,14 +36,9 @@ export default function NotificationsScreen() {
 
     const open = async (n: Notification) => {
         setActionError(null);
-        try {
-            await markRead(n.idNotification);
-        } catch (e) {
-            setActionError(e instanceof ApiError ? e.message : 'Could not update the notification');
-            return;
-        }
-        // Every type is about a ride or booking; My Rides shows both sides.
-        router.push('/my-rides');
+        // Driver events → the offered ride; rider events → the booking. Open it even if marking read fails.
+        router.push(notificationTarget(n));
+        markRead(n.idNotification).catch(() => undefined);
     };
 
     const readAll = async () => {

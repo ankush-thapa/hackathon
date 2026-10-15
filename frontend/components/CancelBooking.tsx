@@ -2,15 +2,12 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../constants/Colors';
 import { MyBooking, MyRidesError, cancelBooking } from '../services/myRides';
-import { notifyBookingCancelled } from '../services/notifications';
-import { useProfile } from '../services/profile';
 
 const theme = Colors.light;
 
 /** Two-step cancel so a stray tap doesn't cancel (no native confirm dialogs). */
 export function CancelBooking({ booking, onCancelled }: { booking: MyBooking; onCancelled: (id: string) => void }) {
     const [confirming, setConfirming] = useState(false);
-    const profile = useProfile();
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -20,17 +17,7 @@ export function CancelBooking({ booking, onCancelled }: { booking: MyBooking; on
         try {
             await cancelBooking(booking.id_booking);
             onCancelled(booking.id_booking);
-            // Tell the driver (best effort; the cancellation already succeeded).
-            notifyBookingCancelled({
-                driverId: booking.ride.driver.id_user,
-                rideId: booking.ride.id_ride,
-                bookingId: booking.id_booking,
-                riderName: profile.fullName || 'A rider',
-                seats: booking.seats_booked,
-                from: booking.ride.source.name,
-                to: booking.ride.destination.name,
-                departure: booking.ride.departure_time,
-            });
+            // The backend notifies the driver itself.
         } catch (e) {
             setError(e instanceof MyRidesError ? e.message : 'Could not cancel. Please try again.');
             setBusy(false);
