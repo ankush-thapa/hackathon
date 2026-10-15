@@ -42,9 +42,12 @@ class Vehicle(TimestampMixin, Base):
         SmallInteger().with_variant(TINYINT(unsigned=True), "mysql"), nullable=False
     )
     vehicle_type = Column(
-        Enum("hatchback", "sedan", "suv", "bike", name="vehicle_type"),
+        Enum("car", "hatchback", "sedan", "suv", "bike", name="vehicle_type"),
         nullable=False,
+        default="car",
+        server_default="car",
     )
+    car_photo = Column(String(500), nullable=True)  # photo URL from POST /v1/media/upload
     is_default = Column(
         Boolean().with_variant(TINYINT(display_width=1), "mysql"),
         nullable=False,
