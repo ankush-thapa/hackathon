@@ -16,6 +16,10 @@ def _seats(n: int) -> str:
     return f"{n} seat" + ("" if n == 1 else "s")
 
 
+def _note(ctx: dict) -> str:
+    return f" Note: {ctx['note']}" if ctx.get("note") else ""
+
+
 def _reason(ctx: dict) -> str:
     return f" Reason: {ctx['reason']}" if ctx.get("reason") else ""
 
@@ -33,7 +37,7 @@ def notify_event(notifications: NotificationService, ctx: dict) -> None:
     if event == "ride_created":
         send(ctx["id_driver"], NotificationType.ride_created, f"Your {ride} is live with {_seats(ctx['seats'])} available.")
     elif event == "booking_requested":
-        send(ctx["id_driver"], NotificationType.booking_requested, f"{rider} requested {_seats(ctx['seats'])} on your {ride}.")
+        send(ctx["id_driver"], NotificationType.booking_requested, f"{rider} requested {_seats(ctx['seats'])} on your {ride}.{_note(ctx)}")
     elif event == "booking_accepted":
         send(ctx["id_rider"], NotificationType.booking_accepted, f"{driver} approved your request for {_seats(ctx['seats'])} on the {ride}.")
     elif event == "booking_rejected":

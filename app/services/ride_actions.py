@@ -34,6 +34,13 @@ class RideActions:
             booking.id_booking if booking else None,
         )
 
+    @staticmethod
+    def release_seats(ride, seats):
+        """A pending request holds its seats; give them back (capped at total_seats) and reopen a full ride."""
+        ride.available_seats = min(ride.total_seats, ride.available_seats + seats)
+        if ride.status == RideStatus.full:
+            ride.status = RideStatus.open
+
     def detail(self, ride_id):
         ride = self.db.get(Ride, ride_id)
         if ride is None:
@@ -76,6 +83,7 @@ class RideActions:
             b.status = BookingStatus.rejected
             b.reject_reason = reason
             b.responded_at = now()
+            self.release_seats(ride, b.seats_booked)
             self.notify(b.id_rider, "booking_rejected", ride, "Your ride request was declined", b)
             self.db.commit()
             return b
@@ -115,13 +123,13 @@ class RideActions:
                 station = self.db.get(Station, station_id)
                 if station is None or not station.is_active:
                     raise HTTPException(422, "station is missing or inactive")
-            accepted = sum(b.seats_booked for b in active if b.status == BookingStatus.accepted)
-            if validated.total_seats < accepted:
-                raise HTTPException(409, "total_seats cannot be below accepted seats")
+            held = sum(b.seats_booked for b in active)  # pending requests hold seats too
+            if validated.total_seats < held:
+                raise HTTPException(409, "total_seats cannot be below seats held by requests and bookings")
             for key, value in validated.model_dump().items():
                 if isinstance(value, datetime): value=value.replace(tzinfo=None)
                 setattr(ride, key, value)
-            ride.available_seats = ride.total_seats - accepted
+            ride.available_seats = ride.total_seats - held
             ride.status = RideStatus.full if ride.available_seats == 0 else RideStatus.open
             for b in active:
                 self.notify(b.id_rider, "ride_modified", ride, "Your ride details changed", b)
@@ -147,6 +155,7 @@ class RideActions:
                 RideBooking.id_ride == ride_id,
                 RideBooking.status.in_([BookingStatus.requested, BookingStatus.accepted]),
             ).with_for_update()))
+            released = 0
             for b in bookings:
                 if action == "cancel":
                     b.status = BookingStatus.cancelled_by_driver
@@ -156,10 +165,13 @@ class RideActions:
                 elif b.status == BookingStatus.requested:
                     b.status = BookingStatus.expired
                     b.responded_at = now()
+                    released += b.seats_booked
                     self.notify(b.id_rider, "booking_rejected", ride, "Your pending ride request expired", b)
                 elif action == "complete":
                     b.status = BookingStatus.completed
             ride.status = target
+            if released:
+                ride.available_seats = min(ride.total_seats, ride.available_seats + released)
             if action == "cancel":
                 ride.cancel_reason = reason
                 ride.cancelled_at = now()
@@ -182,6 +194,7 @@ class RideActions:
             for b in rows:
                 b.status = BookingStatus.expired
                 b.responded_at = now()
+                self.release_seats(ride, b.seats_booked)
                 self.notify(b.id_rider, "booking_rejected", ride, "Your pending ride request expired", b)
             self.db.commit()
             return len(rows)

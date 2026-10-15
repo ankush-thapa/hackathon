@@ -185,7 +185,7 @@ def test_approval_rolls_back_with_its_notification(client, driver, rider, monkey
     monkeypatch.setattr(NotificationRepository, "add", lambda self, params: (_ for _ in ()).throw(RuntimeError("down")))
     with pytest.raises(RuntimeError):
         approve(client, driver, b)
-    assert booking_status(client, b) == "requested" and ride_row(client)[0] == 3  # seats not taken
+    assert booking_status(client, b) == "requested" and ride_row(client)[0] == 1  # still held, nothing else changed
 
 
 def test_ride_is_not_created_if_its_notification_cannot_be_saved(client, ride_data, broken_notifications):
@@ -210,12 +210,13 @@ def test_notifications_can_be_marked_read(client, driver, rider):
 
 def test_driver_rejects_a_request(client, driver, rider):
     b = request_seats(client, rider, seats=2)
+    assert ride_row(client)[:2] == (1, "open")  # held while pending
     r = reject(client, driver, b, {"reason": "  full  "})
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["status"] == "rejected" and body["reject_reason"] == "full" and body["version"] == 2
     assert body["responded_at"].endswith("Z") and body["cancelled_at"] is None and body["cancel_reason"] is None
-    assert ride_row(client)[:2] == (3, "open")  # a request never held seats
+    assert ride_row(client)[:2] == (3, "open")  # the 2 seats it held are free again
 
 
 def test_reject_without_body_is_fine(client, driver, rider):

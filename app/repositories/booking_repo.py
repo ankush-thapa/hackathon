@@ -145,9 +145,10 @@ class BookingRepository:
 
     @retry_lock_conflicts
     def create(self, params: dict, emit: Callable[[dict], None] | None = None) -> dict:
-        """Validate the ride and insert a `requested` booking in one transaction.
+        """Validate the ride, insert a `requested` booking and hold its seats, in one transaction.
 
-        params: id_booking, id_ride, id_rider, seats, rider_note, now (naive UTC).
+        A pending request holds its seats until it is rejected or cancelled, so requests can never add up to more
+        than the ride's free seats. params: id_booking, id_ride, id_rider, seats, rider_note, now (naive UTC).
         """
         # Lock the ride row on MySQL so status/seats can't change under us. SQLite is used by the API tests.
         lock = " FOR UPDATE" if self._db.get_bind().dialect.name == "mysql" else ""
@@ -182,8 +183,13 @@ class BookingRepository:
                     "total_amount": ride.price_per_seat * params["seats"],
                 },
             )
+            remaining = ride.available_seats - params["seats"]
+            self._set_ride_seats(ride, remaining, "full" if remaining == 0 else ride.status)
             booking = dict(self._db.execute(_SELECT_BOOKING, {"id_booking": params["id_booking"]}).mappings().one())
-            self._emit(emit, "booking_requested", ride.id_ride, params["id_booking"], params["id_rider"], seats=params["seats"])
+            self._emit(
+                emit, "booking_requested", ride.id_ride, params["id_booking"], params["id_rider"],
+                seats=params["seats"], note=params["rider_note"],
+            )
             self._db.commit()
             return booking
         except IntegrityError as error:  # uk_booking_one_active: a concurrent request won the race
@@ -217,6 +223,11 @@ class BookingRepository:
             _UPDATE_RIDE_SEATS, {"id_ride": ride.id_ride, "available_seats": available_seats, "status": status}
         )
 
+    def _release_seats(self, ride, seats: int) -> None:
+        """Give a booking's seats back to the ride (capped at total_seats); a full ride reopens."""
+        restored = min(ride.total_seats, ride.available_seats + seats)
+        self._set_ride_seats(ride, restored, "open" if ride.status == "full" else ride.status)
+
     def _read(self, id_booking: int) -> dict:
         return dict(self._db.execute(_SELECT_BOOKING, {"id_booking": id_booking}).mappings().one())
 
@@ -232,19 +243,15 @@ class BookingRepository:
 
     @retry_lock_conflicts
     def approve(self, *, id_booking: int, driver_id: int, now, emit: Callable[[dict], None] | None = None) -> dict:
-        """Driver accepts a `requested` booking and the seats are taken from the ride, in one transaction."""
+        """Driver accepts a `requested` booking. Its seats were held when it was requested, so the ride is unchanged."""
         try:
             ride, booking = self._lock_for_change(id_booking, driver_id)
             if driver_id != ride.id_driver:
                 raise NotRideDriverError
             if booking.status != "requested":
                 raise BookingNotPendingError(booking.status)
-            if ride.status != "open" or ride.departure_time <= now:
+            if ride.status not in ("open", "full") or ride.departure_time <= now:  # "full" is expected: it holds this request
                 raise RideNotBookableError
-            if booking.seats_booked > ride.available_seats:
-                raise NotEnoughSeatsError(ride.available_seats)
-            remaining = ride.available_seats - booking.seats_booked
-            self._set_ride_seats(ride, remaining, "full" if remaining == 0 else ride.status)
             self._db.execute(_APPROVE_BOOKING, {"id_booking": id_booking, "now": now})
             if remaining == 0:
                 self._reject_pending_when_full(ride.id_ride, now, emit)
@@ -260,7 +267,7 @@ class BookingRepository:
     def reject(
         self, *, id_booking: int, driver_id: int, reason: str | None, now, emit: Callable[[dict], None] | None = None
     ) -> dict:
-        """Driver declines a `requested` booking. It never held seats, so the ride is left untouched."""
+        """Driver declines a `requested` booking; the seats it held go back to the ride."""
         try:
             ride, booking = self._lock_for_change(id_booking, driver_id)
             if driver_id != ride.id_driver:
@@ -269,6 +276,7 @@ class BookingRepository:
                 raise BookingNotPendingError(booking.status)
             if ride.status in ("started", "completed", "cancelled") or ride.departure_time <= now:
                 raise RideAlreadyStartedError
+            self._release_seats(ride, booking.seats_booked)
             self._db.execute(_REJECT_BOOKING, {"id_booking": id_booking, "reason": reason, "now": now})
             result = self._read(id_booking)
             self._emit(emit, "booking_rejected", ride.id_ride, id_booking, booking.id_rider, seats=booking.seats_booked, reason=reason)
@@ -282,16 +290,14 @@ class BookingRepository:
     def cancel(
         self, *, id_booking: int, user_id: int, reason: str | None, now, emit: Callable[[dict], None] | None = None
     ) -> dict:
-        """Rider or driver cancels an active booking; an accepted booking gives its seats back to the ride."""
+        """Rider or driver cancels an active booking (requested or accepted); its seats go back to the ride."""
         try:
             ride, booking = self._lock_for_change(id_booking, user_id)
             if booking.status not in ("requested", "accepted"):
                 raise BookingNotCancellableError(booking.status)
             if ride.status in ("started", "completed", "cancelled"):
                 raise RideAlreadyStartedError
-            if booking.status == "accepted":
-                restored = min(ride.total_seats, ride.available_seats + booking.seats_booked)
-                self._set_ride_seats(ride, restored, "open" if ride.status == "full" else ride.status)
+            self._release_seats(ride, booking.seats_booked)
             self._db.execute(
                 _CANCEL_BOOKING,
                 {
