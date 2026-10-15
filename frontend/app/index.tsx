@@ -52,8 +52,10 @@ export default function LandingScreen() {
                                 <NavLink label="Why Hopr" onPress={() => scrollTo('why')} />
                             </>
                         )}
-                        <Pill label="Sign up" filled onPress={() => router.push('/signup')} />
-                        <Pill label="Sign in" onPress={() => router.push('/login')} />
+                        <View style={styles.pills}>
+                            <Pill label="Sign up" filled onPress={() => router.push('/signup')} />
+                            <Pill label="Sign in" onPress={() => router.push('/login')} />
+                        </View>
                     </View>
                 </View>
             </View>
@@ -174,7 +176,8 @@ const styles = StyleSheet.create({
     brandName: { fontFamily: BRAND_FONT, fontSize: 28, color: INK, transform: [{ skewX: '-10deg' }] },
     navRight: { flexDirection: 'row', alignItems: 'center', gap: 24 },
     navLink: { fontSize: 15, fontWeight: '600', color: INK },
-    pill: { paddingVertical: 8, paddingHorizontal: 18, borderRadius: 999, borderWidth: 1.5, marginLeft: -12 },
+    pill: { paddingVertical: 8, paddingHorizontal: 18, borderRadius: 999, borderWidth: 1.5 },
+    pills: { flexDirection: 'row', gap: 10, marginLeft: 8 },
     pillFilled: { backgroundColor: theme.primary, borderColor: theme.primary },
     pillOutline: { backgroundColor: 'transparent', borderColor: '#CDB8AE' },
     pillText: { fontSize: 14, fontWeight: '700' },
