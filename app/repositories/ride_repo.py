@@ -1,5 +1,6 @@
 from app.core.transactions import retry_lock_conflicts
 from datetime import datetime
+from typing import Callable
 
 from sqlalchemy import Numeric, bindparam, text
 from sqlalchemy.exc import IntegrityError
@@ -35,7 +36,7 @@ _VEHICLE_SQL = (
     "WHERE id_vehicle = :id_vehicle AND id_user = :id_driver"
 )
 _STATIONS_SQL = (
-    "SELECT id_station, is_active FROM station "
+    "SELECT id_station, station_name, is_active FROM station "
     "WHERE id_station IN (:id_source_station, :id_destination_station) ORDER BY id_station"
 )
 _INSERT_RIDE = text(
@@ -98,7 +99,7 @@ class RideRepository:
         self._db = db
 
     @retry_lock_conflicts
-    def create(self, params: dict) -> dict:
+    def create(self, params: dict, emit: Callable[[dict], None] | None = None) -> dict:
         # Lock reference rows on MySQL so ownership, status, and capacity stay
         # valid until the offer is committed. SQLite is used by the API tests.
         lock = " FOR UPDATE" if self._db.get_bind().dialect.name == "mysql" else ""
@@ -110,10 +111,9 @@ class RideRepository:
                 raise VehicleInactiveError
             if params["total_seats"] > vehicle.seat_capacity:
                 raise VehicleCapacityError
-            stations = {
-                row.id_station: row.is_active
-                for row in self._db.execute(text(_STATIONS_SQL + (" FOR SHARE" if lock else "")), params)
-            }
+            station_rows = list(self._db.execute(text(_STATIONS_SQL + (" FOR SHARE" if lock else "")), params))
+            stations = {row.id_station: row.is_active for row in station_rows}
+            names = {row.id_station: row.station_name for row in station_rows}
             for field in ("id_source_station", "id_destination_station"):
                 if not stations.get(params[field]):
                     raise StationNotFoundError(field)
@@ -133,6 +133,12 @@ class RideRepository:
                 raise DepartureInPastError
             self._db.execute(_INSERT_RIDE, params)
             ride = dict(self._db.execute(_SELECT_RIDE, {"id_ride": params["id_ride"]}).mappings().one())
+            if emit is not None:  # inside the open transaction: the notification commits or rolls back with the ride
+                emit({
+                    "event": "ride_created", "id_ride": ride["id_ride"], "id_driver": params["id_driver"],
+                    "seats": params["total_seats"], "departure_time": ride["departure_time"],
+                    "route": f"{names[params['id_source_station']]} → {names[params['id_destination_station']]}",
+                })
             self._db.commit()
             return ride
         except IntegrityError as error:

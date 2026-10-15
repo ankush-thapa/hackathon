@@ -16,6 +16,7 @@ class NotificationType(str, enum.Enum):
     booking_cancelled = "booking_cancelled"
     ride_cancelled = "ride_cancelled"
     ride_modified = "ride_modified"
+    ride_created = "ride_created"
 
 
 class Notification(Base):

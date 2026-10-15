@@ -4,6 +4,8 @@ from decimal import Decimal
 from app.core.idempotency import creation_id
 from app.core.pagination import InvalidCursorError, as_datetime, decode_cursor, paginate  # noqa: F401
 from app.repositories.ride_repo import RideRepository, StationNotFoundError
+from app.services.notification_events import notify_event
+from app.services.notification_service import NotificationService
 from app.schemas.ride import (
     DriverSummary,
     OfferRideRequest,
@@ -19,8 +21,13 @@ class DepartureInPastError(Exception):
 
 
 class RideService:
-    def __init__(self, rides: RideRepository):
+    def __init__(self, rides: RideRepository, notifications: NotificationService | None = None):
         self._rides = rides
+        self._notifications = notifications
+
+    def _emit(self, ctx: dict) -> None:
+        """Called by the repository just before it commits, so the notification shares the ride's transaction."""
+        notify_event(self._notifications, ctx)
 
     def offer(self, driver_id: int, request: OfferRideRequest, idempotency_key: str | None = None) -> dict:
         if not idempotency_key and request.departure_time <= datetime.now(timezone.utc):
@@ -31,7 +38,7 @@ class RideService:
         for field in ("departure_time", "estimated_arrival_time"):
             if params[field] is not None:
                 params[field] = params[field].replace(tzinfo=None)
-        return self._rides.create(params)
+        return self._rides.create(params, emit=self._emit if self._notifications is not None else None)
 
     def search(
         self,

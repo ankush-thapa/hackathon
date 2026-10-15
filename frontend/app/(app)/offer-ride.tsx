@@ -11,7 +11,6 @@ import { CURRENCY, formatPrice } from '../../constants/Currency';
 import { ApiError } from '../../services/api';
 import { CAR_POLICIES, CarPolicyId, DEFAULT_POLICIES, buildNotes } from '../../services/carPolicy';
 import { departureLabel } from '../../services/format';
-import { notify } from '../../services/notifications';
 import { OfferError, OfferField, Ride, offerRide } from '../../services/rides';
 import { clearSession } from '../../services/session';
 import { Station } from '../../services/stations';
@@ -123,7 +122,6 @@ export default function OfferRideScreen() {
                 pricePerSeat: Number(price),
                 notes: buildNotes(policies, note),
             });
-            notify('Ride offered', `${ride.from} → ${ride.to}, ${departureLabel(ride.departAt)}. Riders can now book your seats.`);
             setCreated(ride);
         } catch (e) {
             if (e instanceof OfferError && e.sessionExpired) return sessionExpired();

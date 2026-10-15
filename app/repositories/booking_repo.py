@@ -1,12 +1,11 @@
 from app.core.transactions import retry_lock_conflicts
+from typing import Callable
+
 from sqlalchemy import Numeric, bindparam, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.types import DateTime3, UnsignedBigInt, UnsignedInt, UnsignedTinyInt
-from app.models.notification import NotificationType
-from app.repositories.notification_repo import NotificationRepository
-from app.services.notification_service import NotificationService
 
 
 class RideNotFoundError(Exception):
@@ -84,6 +83,20 @@ _SELECT_BOOKING = text(
     responded_at=DateTime3, cancelled_at=DateTime3,
     version=UnsignedInt, created_at=DateTime3, updated_at=DateTime3,
 )
+_NOTIFY_CONTEXT = text(
+    "SELECT r.id_driver, r.departure_time, ss.station_name AS source, ds.station_name AS destination, "
+    "dp.full_name AS driver_name, rp.full_name AS rider_name "
+    "FROM ride r "
+    "JOIN station ss ON ss.id_station = r.id_source_station "
+    "JOIN station ds ON ds.id_station = r.id_destination_station "
+    "LEFT JOIN user_profile dp ON dp.id_user = r.id_driver "
+    "LEFT JOIN user_profile rp ON rp.id_user = :id_rider "
+    "WHERE r.id_ride = :id_ride"
+).columns(departure_time=DateTime3)
+_REJECT_BOOKING = text(
+    "UPDATE ride_booking SET status = 'rejected', reject_reason = :reason, responded_at = :now, version = version + 1 "
+    "WHERE id_booking = :id_booking AND status = 'requested'"
+).bindparams(bindparam("now", type_=DateTime3))
 _BOOKING_RIDE_ID = text("SELECT id_ride FROM ride_booking WHERE id_booking = :id_booking")
 _LOCK_RIDE = (
     "SELECT id_ride, id_driver, status, total_seats, available_seats, departure_time FROM ride "
@@ -114,13 +127,20 @@ class BookingRepository:
     def __init__(self, db: Session):
         self._db = db
 
-    def _notify(self, recipient: int, kind: str, ride_id: int, booking_id: int, message: str):
-        NotificationService(NotificationRepository(self._db)).notify(
-            recipient, NotificationType(kind), ride_id, message, booking_id,
-        )
+    def _emit(self, emit: Callable[[dict], None] | None, event: str, id_ride: int, id_booking: int, id_rider: int, **extra) -> None:
+        """Hand a domain event (with the names a message needs) to `emit`, inside the still-open transaction."""
+        if emit is None:
+            return
+        c = self._db.execute(_NOTIFY_CONTEXT, {"id_ride": id_ride, "id_rider": id_rider}).mappings().one()
+        emit({
+            "event": event, "id_ride": id_ride, "id_booking": id_booking, "id_rider": id_rider,
+            "id_driver": c["id_driver"], "route": f"{c['source']} → {c['destination']}",
+            "departure_time": c["departure_time"], "rider_name": c["rider_name"], "driver_name": c["driver_name"],
+            **extra,
+        })
 
     @retry_lock_conflicts
-    def create(self, params: dict) -> dict:
+    def create(self, params: dict, emit: Callable[[dict], None] | None = None) -> dict:
         """Validate the ride and insert a `requested` booking in one transaction.
 
         params: id_booking, id_ride, id_rider, seats, rider_note, now (naive UTC).
@@ -159,8 +179,7 @@ class BookingRepository:
                 },
             )
             booking = dict(self._db.execute(_SELECT_BOOKING, {"id_booking": params["id_booking"]}).mappings().one())
-            self._notify(ride.id_driver, "booking_requested", ride.id_ride, params["id_booking"],
-                         f"New request for {params['seats']} seat(s)")
+            self._emit(emit, "booking_requested", ride.id_ride, params["id_booking"], params["id_rider"], seats=params["seats"])
             self._db.commit()
             return booking
         except IntegrityError as error:  # uk_booking_one_active: a concurrent request won the race
@@ -198,7 +217,7 @@ class BookingRepository:
         return dict(self._db.execute(_SELECT_BOOKING, {"id_booking": id_booking}).mappings().one())
 
     @retry_lock_conflicts
-    def approve(self, *, id_booking: int, driver_id: int, now) -> dict:
+    def approve(self, *, id_booking: int, driver_id: int, now, emit: Callable[[dict], None] | None = None) -> dict:
         """Driver accepts a `requested` booking and the seats are taken from the ride, in one transaction."""
         try:
             ride, booking = self._lock_for_change(id_booking, driver_id)
@@ -213,8 +232,8 @@ class BookingRepository:
             remaining = ride.available_seats - booking.seats_booked
             self._set_ride_seats(ride, remaining, "full" if remaining == 0 else ride.status)
             self._db.execute(_APPROVE_BOOKING, {"id_booking": id_booking, "now": now})
-            self._notify(booking.id_rider, "booking_accepted", ride.id_ride, id_booking, "Your ride request was accepted")
             result = self._read(id_booking)
+            self._emit(emit, "booking_accepted", ride.id_ride, id_booking, booking.id_rider, seats=booking.seats_booked)
             self._db.commit()
             return result
         except Exception:
@@ -222,7 +241,31 @@ class BookingRepository:
             raise
 
     @retry_lock_conflicts
-    def cancel(self, *, id_booking: int, user_id: int, reason: str | None, now) -> dict:
+    def reject(
+        self, *, id_booking: int, driver_id: int, reason: str | None, now, emit: Callable[[dict], None] | None = None
+    ) -> dict:
+        """Driver declines a `requested` booking. It never held seats, so the ride is left untouched."""
+        try:
+            ride, booking = self._lock_for_change(id_booking, driver_id)
+            if driver_id != ride.id_driver:
+                raise NotRideDriverError
+            if booking.status != "requested":
+                raise BookingNotPendingError(booking.status)
+            if ride.status in ("started", "completed", "cancelled") or ride.departure_time <= now:
+                raise RideAlreadyStartedError
+            self._db.execute(_REJECT_BOOKING, {"id_booking": id_booking, "reason": reason, "now": now})
+            result = self._read(id_booking)
+            self._emit(emit, "booking_rejected", ride.id_ride, id_booking, booking.id_rider, seats=booking.seats_booked, reason=reason)
+            self._db.commit()
+            return result
+        except Exception:
+            self._db.rollback()
+            raise
+
+    @retry_lock_conflicts
+    def cancel(
+        self, *, id_booking: int, user_id: int, reason: str | None, now, emit: Callable[[dict], None] | None = None
+    ) -> dict:
         """Rider or driver cancels an active booking; an accepted booking gives its seats back to the ride."""
         try:
             ride, booking = self._lock_for_change(id_booking, user_id)
@@ -242,9 +285,11 @@ class BookingRepository:
                     "now": now,
                 },
             )
-            recipient = ride.id_driver if user_id == booking.id_rider else booking.id_rider
-            self._notify(recipient, "booking_cancelled", ride.id_ride, id_booking, "A ride booking was cancelled")
             result = self._read(id_booking)
+            self._emit(
+                emit, "booking_cancelled", ride.id_ride, id_booking, booking.id_rider,
+                seats=booking.seats_booked, reason=reason, actor="rider" if user_id == booking.id_rider else "driver",
+            )
             self._db.commit()
             return result
         except Exception:

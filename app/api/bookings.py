@@ -18,14 +18,16 @@ from app.repositories.booking_repo import (
     RideNotBookableError,
     RideNotFoundError,
 )
-from app.schemas.booking import BookingResponse, BookRideRequest, CancelBookingRequest
+from app.repositories.notification_repo import NotificationRepository
+from app.schemas.booking import BookingResponse, BookRideRequest, CancelBookingRequest, RejectBookingRequest
 from app.services.booking_service import BookingService
+from app.services.notification_service import NotificationService
 
 router = APIRouter(prefix="/v1/ride/booking", tags=["bookings"])
 
 
 def get_booking_service(db: Session = Depends(get_db)) -> BookingService:
-    return BookingService(BookingRepository(db))
+    return BookingService(BookingRepository(db), NotificationService(NotificationRepository(db)))
 
 
 @router.post(
@@ -109,6 +111,40 @@ def approve_booking(
         raise HTTPException(status.HTTP_409_CONFLICT, detail="ride is not open or has already departed") from None
     except NotEnoughSeatsError as e:
         raise HTTPException(status.HTTP_409_CONFLICT, detail=f"not enough seats: {e.available} available") from None
+    return BookingResponse.model_validate(booking)
+
+
+@router.post(
+    "/{id_booking}/reject",
+    response_model=BookingResponse,
+    summary="Reject a ride request (driver)",
+    responses={
+        **_CHANGE_RESPONSES,
+        403: {"description": "The caller is the rider, not the ride's driver"},
+        409: {"description": "Booking is not pending, or the ride has started, finished or been cancelled"},
+    },
+)
+def reject_booking(
+    id_booking: BookingId,
+    request: RejectBookingRequest | None = None,
+    current_user_id: int = Depends(get_current_user_id),
+    service: BookingService = Depends(get_booking_service),
+):
+    """The ride's driver declines a `requested` booking using Authorization: Bearer <accessToken>.
+
+    The booking becomes `rejected` (with the optional `reason`) and the rider is notified. A request never held
+    seats, so the ride's `available_seats` is unchanged.
+    """
+    try:
+        booking = service.reject(current_user_id, id_booking, request.reason if request else None)
+    except BookingNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="booking not found") from None
+    except NotRideDriverError:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="only the ride's driver can reject a request") from None
+    except BookingNotPendingError as e:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail=f"booking is not awaiting a decision (status: {e.status})") from None
+    except RideAlreadyStartedError:
+        raise HTTPException(status.HTTP_409_CONFLICT, detail="ride has already started or finished") from None
     return BookingResponse.model_validate(booking)
 
 

@@ -1,10 +1,8 @@
 from datetime import datetime, timezone
-from decimal import Decimal
 
-from app.core.pagination import as_datetime, decode_cursor, paginate
+from app.core.pagination import decode_cursor, paginate
 from app.repositories.my_ride_repo import MyRideRepository
 from app.schemas.my_ride import (
-    DriverInfo,
     MyBookingItem,
     MyBookingsResponse,
     MyRideItem,
@@ -12,38 +10,10 @@ from app.schemas.my_ride import (
     MyRideScope,
     RideInfo,
     RideRequestsInfo,
-    StationInfo,
-    VehicleInfo,
 )
-
-
-def _utc(v) -> datetime | None:
-    return as_datetime(v).replace(tzinfo=timezone.utc) if v else None
-
-
-def _money(v) -> Decimal:
-    return Decimal(str(v)).quantize(Decimal("0.01"))
-
-
-def _ride_fields(r: dict) -> dict:
-    return dict(
-        id_ride=str(r["id_ride"]),
-        status=r["ride_status"],
-        source=StationInfo(id_station=r["id_source_station"], name=r["source_station_name"]),
-        destination=StationInfo(id_station=r["id_destination_station"], name=r["destination_station_name"]),
-        departure_time=_utc(r["departure_time"]),
-        estimated_arrival_time=_utc(r["estimated_arrival_time"]),
-        total_seats=r["total_seats"],
-        available_seats=r["available_seats"],
-        price_per_seat=_money(r["price_per_seat"]),
-        notes=r["notes"],
-        driver=DriverInfo(id_user=str(r["id_driver"]), full_name=r["driver_name"], photo_url=r["driver_photo_url"]),
-        vehicle=VehicleInfo(
-            make=r["vehicle_make"], model=r["vehicle_model"], color=r["vehicle_color"], vehicle_type=r["vehicle_type"]
-        )
-        if r["vehicle_make"]
-        else None,
-    )
+from app.services.ride_view import money as _money
+from app.services.ride_view import ride_fields as _ride_fields
+from app.services.ride_view import utc as _utc
 
 
 class MyRideService:

@@ -29,11 +29,6 @@ def booking_response(booking):
     return BookingResponse.model_validate({key: getattr(booking,key) for key in BookingResponse.model_fields})
 
 
-@router.get("/v1/rides/{id_ride}", response_model=OfferRideResponse)
-def ride_detail(id_ride: Id, user: int = Depends(get_current_user_id), service: RideActions = Depends(actions)):
-    return ride_response(service.detail(id_ride))
-
-
 @router.get("/v1/rides/{id_ride}/bookings", response_model=RideBookingListResponse)
 def list_ride_bookings(id_ride: Id, status: BookingStatus | None = None,
                        cursor: int | None = Query(default=None, gt=0, le=2**64-1),
@@ -87,10 +82,3 @@ def expire_requests(id_ride: Id, user: int = Depends(get_current_user_id), servi
 @router.get("/v1/ride/booking/{id_booking}", response_model=BookingResponse)
 def booking_detail(id_booking: Id, user: int = Depends(get_current_user_id), service: RideActions = Depends(actions)):
     return booking_response(service.booking(id_booking, user))
-
-
-@router.post("/v1/ride/booking/{id_booking}/reject", response_model=BookingResponse)
-def reject_booking(id_booking: Id, request: CancelBookingRequest | None = None,
-                   user: int = Depends(get_current_user_id), service: RideActions = Depends(actions)):
-    """Driver declines a pending request; optional body: {"reason": "..."}."""
-    return booking_response(service.reject(id_booking, user, request.reason if request else None))
