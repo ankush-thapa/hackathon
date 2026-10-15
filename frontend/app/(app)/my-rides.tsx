@@ -1,12 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Badge, Card, EmptyState, Screen, SecondaryButton } from '../../components/ui';
+import { Badge, Card, EmptyState, Screen, SecondaryButton, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
+import { RideRequestList } from '../../components/RideRequestRow';
 import { departureLabel } from '../../services/format';
+<<<<<<< HEAD
 import { notifyBookingCancelled } from '../../services/notifications';
 import { useProfile } from '../../services/profile';
 import { CURRENCY } from '../../constants/Currency';
+=======
+import { RideRequest, fetchPendingRequests } from '../../services/rideRequests';
+>>>>>>> origin/main
 import {
     BookingStatus,
     MyBooking,
@@ -55,6 +60,8 @@ export default function MyRidesScreen() {
     const [scope, setScope] = useState<Exclude<Scope, 'all'>>('upcoming');
     const [state, setState] = useState<ListState<MyRide | MyBooking>>(initial());
     const reqId = useRef(0); // ignore responses from a tab the user has already left
+    // Seat requests on my offered rides, by ride id (from booking_requested notifications).
+    const [requests, setRequests] = useState<Record<string, RideRequest[]>>({});
 
     const onError = useCallback(
         (e: unknown) => {
@@ -71,8 +78,14 @@ export default function MyRidesScreen() {
         const id = ++reqId.current;
         setState(initial());
         try {
-            const page = kind === 'offered' ? await fetchMyRides(scope) : await fetchMyBookings(scope);
-            if (id === reqId.current) setState({ items: page.items, next: page.next_page, loading: false, loadingMore: false, error: null });
+            const [page, pending] = await Promise.all([
+                kind === 'offered' ? fetchMyRides(scope) : fetchMyBookings(scope),
+                kind === 'offered' && scope === 'upcoming' ? fetchPendingRequests().catch(() => ({})) : Promise.resolve({}),
+            ]);
+            if (id === reqId.current) {
+                setRequests(pending);
+                setState({ items: page.items, next: page.next_page, loading: false, loadingMore: false, error: null });
+            }
         } catch (e) {
             if (id === reqId.current) setState(s => ({ ...s, loading: false, error: onError(e) }));
         }
@@ -141,7 +154,13 @@ export default function MyRidesScreen() {
                         'id_booking' in item ? (
                             <BookingCard key={item.id_booking} booking={item} canCancel={scope === 'upcoming'} onCancelled={onBookingCancelled} />
                         ) : (
-                            <OfferedCard key={item.id_ride} ride={item} />
+                            <OfferedCard
+                                key={item.id_ride}
+                                ride={item}
+                                requests={requests[item.id_ride] ?? []}
+                                onHandled={load}
+                                onAuthError={onError}
+                            />
                         ),
                     )}
                     {state.error ? <Text style={[styles.error, { textAlign: 'center' }]}>{state.error}</Text> : null}
@@ -199,7 +218,10 @@ function Route({ ride }: { ride: RideInfo }) {
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function OfferedCard({ ride }: { ride: MyRide }) {
+function OfferedCard({ ride, requests, onHandled, onAuthError }: {
+    ride: MyRide; requests: RideRequest[]; onHandled: () => void; onAuthError: (e: unknown) => string;
+}) {
+    const router = useRouter();
     const status = RIDE_STATUS[ride.status];
     const booked = ride.total_seats - ride.available_seats;
     const pending = ride.requests.pending_requests;
@@ -217,6 +239,16 @@ function OfferedCard({ ride }: { ride: MyRide }) {
             </Text>
             {car ? <Text style={styles.meta}>{car}</Text> : null}
             {ride.notes ? <Text style={styles.note}>“{ride.notes}”</Text> : null}
+            <View style={{ marginTop: 4 }}>
+                <TextLink label="View details" onPress={() => router.push({ pathname: '/my-rides/[id]', params: { id: ride.id_ride } })} />
+            </View>
+            {requests.length ? (
+                <View style={styles.requestsBox}>
+                    <RideRequestList requests={requests} onHandled={onHandled} onAuthError={onAuthError} />
+                </View>
+            ) : pending && ride.status === 'open' ? (
+                <Text style={styles.hint}>Requests made before this update can't be shown here yet.</Text>
+            ) : null}
         </Card>
     );
 }
@@ -350,4 +382,6 @@ const styles = StyleSheet.create({
     confirmRow: { flexDirection: 'row', alignItems: 'center', gap: 16, flexWrap: 'wrap' },
     confirmText: { fontSize: 14, color: theme.text, flex: 1 },
     keepText: { fontSize: 14, fontWeight: '700', color: theme.muted },
+    hint: { fontSize: 13, color: theme.muted },
+    requestsBox: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.border },
 });

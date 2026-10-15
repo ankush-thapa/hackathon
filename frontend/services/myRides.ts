@@ -52,8 +52,34 @@ const query = (scope: Scope, cursor?: string | null, pageSize = 20) => {
     return p.toString();
 };
 
-export const fetchMyRides = (scope: Scope, cursor?: string | null) =>
-    request<Page<MyRide>>(`/v1/me/rides?${query(scope, cursor)}`);
+// Rides seen in any list, so the detail page opens instantly from My Rides.
+const rideCache = new Map<string, MyRide>();
+
+export async function fetchMyRides(scope: Scope, cursor?: string | null) {
+    const page = await request<Page<MyRide>>(`/v1/me/rides?${query(scope, cursor)}`);
+    page.items.forEach(r => rideCache.set(r.id_ride, r));
+    return page;
+}
+
+export const cachedMyRide = (idRide: string) => rideCache.get(idRide) ?? null;
+
+/**
+ * One of my offered rides by id. There's no GET /v1/rides/{id}, so this pages through
+ * /v1/me/rides (upcoming first, then everything) until it finds it. Returns null if not mine.
+ */
+export async function findMyRide(idRide: string, maxPages = 10): Promise<MyRide | null> {
+    for (const scope of ['upcoming', 'all'] as const) {
+        let cursor: string | null = null;
+        for (let i = 0; i < maxPages; i++) {
+            const page: Page<MyRide> = await fetchMyRides(scope, cursor);
+            const hit = page.items.find(r => r.id_ride === idRide);
+            if (hit) return hit;
+            if (!page.next_page) break;
+            cursor = page.next_page;
+        }
+    }
+    return null;
+}
 
 export const fetchMyBookings = (scope: Scope, cursor?: string | null) =>
     request<Page<MyBooking>>(`/v1/me/bookings?${query(scope, cursor)}`);

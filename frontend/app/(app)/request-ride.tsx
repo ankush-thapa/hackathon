@@ -21,6 +21,9 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
+import { useProfile } from '../../services/profile';
+import { notifyDriverOfRequest } from '../../services/rideRequests';
+import { getSession } from '../../services/session';
 
 const theme = Colors.light;
 const DAYS = nextDays(7);
@@ -242,6 +245,7 @@ function StationPicker({ label, value, onChange, stations, exclude }: {
 
 function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: number; onAuthError: (e: unknown) => void }) {
     const router = useRouter();
+    const profile = useProfile();
     const [step, setStep] = useState<'idle' | 'confirm' | 'done'>('idle');
     const [note, setNote] = useState('');
     const [busy, setBusy] = useState(false);
@@ -258,6 +262,7 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         try {
             const booking = await bookRide(ride.idRide, seats, note);
             setStep('done');
+<<<<<<< HEAD
             // Tell the driver (best effort; the booking already succeeded).
             notifyBookingRequested({
                 driverId: ride.driver.userId,
@@ -268,6 +273,17 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
                 from: ride.source.name,
                 to: ride.destination.name,
                 departure: ride.departureTime,
+=======
+            const s = getSession();
+            notifyDriverOfRequest({
+                idDriver: ride.driver.userId,
+                idRide: ride.idRide,
+                idBooking: booking.id_booking,
+                departureTime: ride.departureTime,
+                seats,
+                riderName: profile.fullName || s?.email?.split('@')[0] || 'A rider',
+                note,
+>>>>>>> origin/main
             });
         } catch (e) {
             onAuthError(e);
