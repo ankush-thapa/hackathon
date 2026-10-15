@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors } from '../../constants/Colors';
+import { PrimaryButton } from '../../components/PrimaryButton';
+import { TextField } from '../../components/TextField';
 import { VehicleCard } from '../../components/VehicleCard';
 import { Vehicle, compactRegistration, isValidRegistration } from '../../types/vehicle';
 
@@ -82,76 +84,68 @@ export default function VehiclesScreen() {
 
                 {/* Add form */}
                 <View style={[styles.form, { backgroundColor: theme.card, borderColor: theme.border }]}>
-                    <Text style={[styles.label, { color: theme.text }]}>Photo</Text>
-                    <Pressable
-                        onPress={pickPhoto}
-                        accessibilityLabel="Choose vehicle photo"
-                        style={({ pressed }) => [
-                            styles.photoBox,
-                            { borderColor: errors.photo ? theme.error : theme.border },
-                            pressed && styles.pressed,
-                        ]}
-                    >
-                        {photoUri ? (
-                            <Image source={{ uri: photoUri }} style={styles.photoPreview} />
-                        ) : (
-                            <View style={styles.photoEmpty}>
-                                <Text style={[styles.photoPlus, { color: theme.primary }]}>+</Text>
-                                <Text style={{ color: theme.muted }}>Tap to choose a photo</Text>
-                            </View>
-                        )}
-                    </Pressable>
-                    {photoUri && (
-                        <Pressable onPress={pickPhoto}>
-                            <Text style={[styles.link, { color: theme.primary }]}>Change photo</Text>
+                    <View style={styles.photoGroup}>
+                        <Text style={[styles.label, { color: theme.text }]}>Photo</Text>
+                        <Pressable
+                            onPress={pickPhoto}
+                            accessibilityLabel="Choose vehicle photo"
+                            style={({ pressed }) => [
+                                styles.photoBox,
+                                { borderColor: errors.photo ? theme.error : theme.border },
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            {photoUri ? (
+                                <Image source={{ uri: photoUri }} style={styles.photoPreview} />
+                            ) : (
+                                <View style={styles.photoEmpty}>
+                                    <Text style={[styles.photoPlus, { color: theme.primary }]}>+</Text>
+                                    <Text style={{ color: theme.muted }}>Tap to choose a photo</Text>
+                                </View>
+                            )}
                         </Pressable>
-                    )}
-                    {errors.photo && <Text style={[styles.error, { color: theme.error }]}>{errors.photo}</Text>}
+                        {photoUri && (
+                            <Pressable onPress={pickPhoto}>
+                                <Text style={[styles.link, { color: theme.primary }]}>Change photo</Text>
+                            </Pressable>
+                        )}
+                        {errors.photo && <Text style={[styles.error, { color: theme.error }]}>{errors.photo}</Text>}
+                    </View>
 
-                    <Text style={[styles.label, { color: theme.text }]}>Car name</Text>
-                    <TextInput
+                    <TextField
+                        label="Car name"
                         value={name}
                         onChangeText={v => { setName(v); setErrors(p => ({ ...p, name: undefined })); }}
                         placeholder="e.g. Maruti Swift"
-                        placeholderTextColor={theme.muted}
+                        autoCapitalize="words"
                         maxLength={40}
-                        style={[styles.input, { color: theme.text, borderColor: errors.name ? theme.error : theme.border }]}
+                        error={errors.name}
                     />
-                    {errors.name && <Text style={[styles.error, { color: theme.error }]}>{errors.name}</Text>}
 
-                    <Text style={[styles.label, { color: theme.text }]}>Vehicle number</Text>
-                    <TextInput
+                    <TextField
+                        label="Vehicle number"
                         value={number}
                         onChangeText={v => { setNumber(normalizeNumber(v)); setErrors(p => ({ ...p, number: undefined })); }}
                         placeholder="e.g. MH 12 AB 1234"
-                        placeholderTextColor={theme.muted}
                         autoCapitalize="characters"
-                        autoCorrect={false}
                         maxLength={16}
-                        style={[
-                            styles.input,
-                            { color: theme.text, borderColor: errors.number ? theme.error : theme.border },
-                        ]}
+                        style={styles.plate}
+                        error={errors.number}
                     />
-                    {errors.number && <Text style={[styles.error, { color: theme.error }]}>{errors.number}</Text>}
 
-                    <Text style={[styles.label, { color: theme.text }]}>Colour</Text>
-                    <TextInput
+                    <TextField
+                        label="Colour"
                         value={color}
                         onChangeText={v => { setColor(v); setErrors(p => ({ ...p, color: undefined })); }}
                         placeholder="e.g. Pearl White"
-                        placeholderTextColor={theme.muted}
+                        autoCapitalize="words"
                         maxLength={30}
-                        style={[styles.input, { color: theme.text, borderColor: errors.color ? theme.error : theme.border }]}
+                        error={errors.color}
                     />
-                    {errors.color && <Text style={[styles.error, { color: theme.error }]}>{errors.color}</Text>}
 
-                    <Pressable
-                        onPress={addVehicle}
-                        style={({ pressed }) => [styles.addBtn, { backgroundColor: theme.primary }, pressed && styles.pressed]}
-                    >
-                        <Text style={styles.addBtnText}>Add vehicle</Text>
-                    </Pressable>
+                    <View style={styles.submit}>
+                        <PrimaryButton title="Add vehicle" onPress={addVehicle} />
+                    </View>
                 </View>
 
                 {/* List */}
@@ -184,6 +178,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 28,
         fontWeight: '800',
+        letterSpacing: -0.5,
     },
     subtitle: {
         fontSize: 15,
@@ -191,14 +186,16 @@ const styles = StyleSheet.create({
     },
     form: {
         borderWidth: 1,
-        borderRadius: 12,
-        padding: 16,
-        gap: 8,
+        borderRadius: 16,
+        padding: 20,
+        gap: 18,
+    },
+    photoGroup: {
+        gap: 6,
     },
     label: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '600',
-        marginTop: 6,
     },
     photoBox: {
         height: 180,
@@ -225,27 +222,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '600',
     },
-    input: {
-        borderWidth: 1,
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        fontSize: 16,
-        letterSpacing: 0.5,
+    plate: {
+        letterSpacing: 1,
+        fontWeight: '600',
     },
     error: {
         fontSize: 13,
     },
-    addBtn: {
-        marginTop: 12,
-        paddingVertical: 12,
-        borderRadius: 24,
-        alignItems: 'center',
-    },
-    addBtnText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
+    submit: {
+        marginTop: 6,
     },
     sectionTitle: {
         fontSize: 18,
