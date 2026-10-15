@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors } from '../constants/Colors';
 import { useUnreadCount } from '../services/notifications';
-import { useProfile } from '../services/profile';
+import { resetProfile, useProfile } from '../services/profile';
 import { clearSession, getSession } from '../services/session';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
@@ -24,6 +24,7 @@ export const AppHeader = ({ onMenuPress, showMenuButton }: Props) => {
 
     const logout = () => {
         clearSession();
+        resetProfile();
         router.replace('/login');
     };
 
@@ -48,11 +49,11 @@ export const AppHeader = ({ onMenuPress, showMenuButton }: Props) => {
                     <Pressable
                         onPress={() => router.push('/dashboard')}
                         accessibilityRole="link"
-                        accessibilityLabel="Carpool dashboard"
+                        accessibilityLabel="Hopr dashboard"
                         style={({ pressed }) => [styles.brand, pressed && { opacity: 0.7 }]}
                     >
                         <Image source={require('../assets/app_icon.png')} style={styles.logo} />
-                        <Text style={[styles.brandName, { color: theme.text }]}>Carpool</Text>
+                        <Text style={[styles.brandName, { color: theme.text }]}>Hopr</Text>
                     </Pressable>
                 </View>
 
@@ -81,6 +82,7 @@ const styles = StyleSheet.create({
     left: { flexDirection: 'row', alignItems: 'center', gap: 2, flexShrink: 1 },
     right: { flexDirection: 'row', alignItems: 'center' },
     brand: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 6, paddingVertical: 6 },
-    logo: { width: 28, height: 28, borderRadius: 7 },
-    brandName: { fontSize: 19, fontWeight: '800', letterSpacing: -0.4 },
+    logo: { width: 30, height: 30 },
+    // Same wordmark as components/Header.tsx: Fredoka, slanted like the logo.
+    brandName: { fontSize: 22, letterSpacing: -0.3, fontFamily: 'Fredoka_700Bold', transform: [{ skewX: '-10deg' }] },
 });

@@ -16,7 +16,7 @@ const minutesAgo = (m: number) => new Date(Date.now() - m * 60_000).toISOString(
 const store = createStore<Notification[]>([
     {
         id: 'welcome',
-        title: 'Welcome to Carpool',
+        title: 'Welcome to Hopr',
         body: 'Request a ride or offer one to start sharing the journey.',
         createdAt: minutesAgo(2),
         read: false,
