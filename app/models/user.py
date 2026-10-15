@@ -48,8 +48,9 @@ class User(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False, server_default=now_ms_on_update())
     last_active: Mapped[datetime | None] = mapped_column(DateTime3)  # update throttled, not per request
 
-    profile: Mapped["UserProfile | None"] = relationship(back_populates="user", uselist=False)
-    documents: Mapped[list["UserDocument"]] = relationship(back_populates="user")
+    profile: Mapped["UserProfile | None"] = relationship(back_populates="user", uselist=False, passive_deletes="all")
+    documents: Mapped[list["UserDocument"]] = relationship(back_populates="user", passive_deletes="all")
+    vehicles: Mapped[list["Vehicle"]] = relationship(back_populates="user", passive_deletes="all")
 
     @validates("user_name")
     def _lower_user_name(self, _key: str, value: str | None) -> str | None:

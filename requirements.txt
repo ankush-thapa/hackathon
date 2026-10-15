@@ -6,3 +6,5 @@ pydantic-settings
 httpx
 pytest
 python-multipart
+alembic
+pyjwt

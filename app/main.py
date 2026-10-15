@@ -12,13 +12,12 @@ from app.api.profile import router as profile_router
 from app.api.users import router as users_router
 from app.core.config import settings
 from app.db.fixtures import load_user_fixtures
-from app.db.session import Base, SessionLocal, engine
+from app.db.session import SessionLocal
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Dev convenience: create tables and seed demo users. Use migrations for real apps.
-    Base.metadata.create_all(bind=engine)
+    # Entrypoints run Alembic before startup; retain the existing demo seed users.
     with SessionLocal() as db:
         load_user_fixtures(db)
     yield
