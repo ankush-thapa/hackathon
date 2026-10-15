@@ -6,7 +6,6 @@ import { TextField } from '../../components/TextField';
 import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTitle, Stepper, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { dayLabel, nextDays, timeLabel } from '../../services/format';
-import { notifyBookingRequested } from '../../services/notifications';
 import { useProfile } from '../../services/profile';
 import { CURRENCY } from '../../constants/Currency';
 import {
@@ -21,6 +20,9 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
+
+import { notifyDriverOfRequest } from '../../services/rideRequests';
+import { getSession } from '../../services/session';
 
 const theme = Colors.light;
 const DAYS = nextDays(7);
@@ -258,16 +260,15 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         try {
             const booking = await bookRide(ride.idRide, seats, note);
             setStep('done');
-            // Tell the driver (best effort; the booking already succeeded).
-            notifyBookingRequested({
-                driverId: ride.driver.userId,
-                rideId: ride.idRide,
-                bookingId: booking.id_booking,
-                riderName: profile.fullName || 'A rider',
+            const s = getSession();
+            notifyDriverOfRequest({
+                idDriver: ride.driver.userId,
+                idRide: ride.idRide,
+                idBooking: booking.id_booking,
+                departureTime: ride.departureTime,
                 seats,
-                from: ride.source.name,
-                to: ride.destination.name,
-                departure: ride.departureTime,
+                riderName: profile.fullName || s?.email?.split('@')[0] || 'A rider',
+                note,
             });
         } catch (e) {
             onAuthError(e);
