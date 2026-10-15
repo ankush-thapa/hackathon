@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Colors } from '../constants/Colors';
+import { profileHref } from '../services/users';
 import { Avatar } from './Avatar';
+import { Icon } from './Icon';
 
 const theme = Colors.light;
 
@@ -16,16 +19,20 @@ type Props = {
     note?: string | null;
     size?: 'regular' | 'compact';
     right?: React.ReactNode;
+    /** When set, tapping the card opens this user's profile page. */
+    userId?: string | null;
 };
 
 /** Who you're riding with: photo (or initials), name and a few facts. Used for drivers and riders alike. */
-export const PersonCard = ({ name, photoUrl, role, details = [], note, size = 'regular', right }: Props) => {
+export const PersonCard = ({ name, photoUrl, role, details = [], note, size = 'regular', right, userId }: Props) => {
+    const router = useRouter();
     const [photoFailed, setPhotoFailed] = useState(false);
     const px = size === 'compact' ? 36 : 52;
     const lines = details.filter(Boolean) as string[];
 
-    return (
-        <View style={styles.row} accessible accessibilityLabel={[role, name, ...lines, note ? `Note: ${note}` : ''].filter(Boolean).join('. ')}>
+    const label = [role, name, ...lines, note ? `Note: ${note}` : ''].filter(Boolean).join('. ');
+    const content = (
+        <>
             {photoUrl && !photoFailed ? (
                 <Image
                     source={{ uri: photoUrl }}
@@ -43,7 +50,22 @@ export const PersonCard = ({ name, photoUrl, role, details = [], note, size = 'r
                 {note ? <Text style={styles.note}>“{note}”</Text> : null}
             </View>
             {right}
-        </View>
+            {userId ? <Icon name="chevron" color={theme.muted} size={18} /> : null}
+        </>
+    );
+
+    if (!userId) {
+        return <View style={styles.row} accessible accessibilityLabel={label}>{content}</View>;
+    }
+    return (
+        <Pressable
+            onPress={() => router.push(profileHref(userId, { name, photo: photoUrl, role }))}
+            accessibilityRole="button"
+            accessibilityLabel={`${label}. View profile`}
+            style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
+        >
+            {content}
+        </Pressable>
     );
 };
 

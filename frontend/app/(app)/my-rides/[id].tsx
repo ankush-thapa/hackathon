@@ -8,7 +8,8 @@ import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTit
 import { Colors } from '../../../constants/Colors';
 import { CURRENCY } from '../../../constants/Currency';
 import { dayLabel, istDay, timeLabel } from '../../../services/format';
-import { MyRide, MyRidesError, RideStatus, cachedMyRide, findMyRide, money, updateRideSeats, vehicleText } from '../../../services/myRides';
+import { MyRide, MyRidesError, RideStatus, cachedMyRide, cancelOfferedRide, findMyRide, money, updateRideSeats, vehicleText } from '../../../services/myRides';
+import { useForegroundRefresh } from '../../../services/useForegroundRefresh';
 import { Passenger, RideRequest, fetchPassengers, fetchRideRequests } from '../../../services/rideRequests';
 import { PersonCard } from '../../../components/PersonCard';
 
@@ -171,6 +172,8 @@ export default function RideDetailScreen() {
                     {passengers.map((p, i) => (
                         <View key={p.idBooking} style={i > 0 ? styles.passengerDivider : undefined}>
                             <PersonCard
+                                userId={p.idRider}
+                                role="Passenger"
                                 name={p.riderName}
                                 photoUrl={p.riderPhotoUrl}
                                 details={[

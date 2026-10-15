@@ -24,6 +24,7 @@ type RiderBookingItem = {
 export type RideRequest = {
     idBooking: string;
     idRide: string;
+    idRider: string;
     riderName: string;
     riderPhotoUrl: string | null;
     seats: number;
@@ -35,6 +36,7 @@ export type RideRequest = {
 const toRequest = (b: RiderBookingItem): RideRequest => ({
     idBooking: b.id_booking,
     idRide: b.id_ride,
+    idRider: b.id_rider,
     riderName: b.rider_name || 'A rider',
     riderPhotoUrl: b.rider_photo_url,
     seats: b.seats_booked,
@@ -49,7 +51,7 @@ export async function fetchRideRequests(idRide: string): Promise<RideRequest[]> 
     return res.items.map(toRequest).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
-export type Passenger = RideRequest & { idRider: string; confirmedAt: string | null };
+export type Passenger = RideRequest & { confirmedAt: string | null };
 
 /**
  * Confirmed passengers on one of my rides (driver only), oldest booking first.
@@ -63,7 +65,7 @@ export async function fetchPassengers(idRide: string): Promise<Passenger[]> {
         if (cursor) q.set('cursor', cursor);
         const res: { items: (RiderBookingItem & { responded_at?: string | null })[]; next_cursor?: string | null } =
             await request(`/v1/rides/${idRide}/bookings?${q}`);
-        all.push(...res.items.map(b => ({ ...toRequest(b), idRider: b.id_rider, confirmedAt: b.responded_at ?? null })));
+        all.push(...res.items.map(b => ({ ...toRequest(b), confirmedAt: b.responded_at ?? null })));
         cursor = res.next_cursor ?? null;
     } while (cursor);
     return all.sort((a, b) => a.createdAt.localeCompare(b.createdAt));

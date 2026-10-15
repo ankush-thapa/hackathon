@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Image, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Avatar } from '../../../../components/Avatar';
+import { profileHref } from '../../../../services/users';
 import { CancelBooking } from '../../../../components/CancelBooking';
 import { Badge, Card, EmptyState, Screen, SecondaryButton, SectionTitle, TextLink } from '../../../../components/ui';
 import { Colors } from '../../../../constants/Colors';
@@ -136,7 +137,12 @@ export default function BookingDetailScreen() {
             {/* Driver */}
             <SectionTitle title="Driver" />
             <Card>
-                <View style={styles.driverRow}>
+                <Pressable
+                    style={({ pressed }) => [styles.driverRow, pressed && { opacity: 0.7 }]}
+                    onPress={() => router.push(profileHref(ride.driver.id_user, { name: ride.driver.full_name, photo: ride.driver.photo_url, role: 'Driver' }))}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Driver ${driverName}. View profile`}
+                >
                     {ride.driver.photo_url ? (
                         <Image source={{ uri: ride.driver.photo_url }} style={styles.driverPhoto} />
                     ) : (
@@ -147,7 +153,8 @@ export default function BookingDetailScreen() {
                         <Text style={styles.meta}>{car ?? 'Vehicle not listed'}</Text>
                         {ride.vehicle ? <Text style={styles.meta}>{ride.vehicle.vehicle_type}</Text> : null}
                     </View>
-                </View>
+                    <Text style={styles.viewProfile}>View profile ›</Text>
+                </Pressable>
                 {ride.notes ? <Text style={styles.note}>Driver's note: “{ride.notes}”</Text> : null}
             </Card>
 
@@ -212,6 +219,7 @@ const InfoRow = ({ label, value, strong }: { label: string; value: string; stron
 );
 
 const styles = StyleSheet.create({
+    viewProfile: { fontSize: 14, fontWeight: '700', color: theme.primary },
     center: { alignItems: 'center', paddingVertical: 40, gap: 12 },
     error: { fontSize: 14, color: theme.error },
     statusCard: { gap: 8 },

@@ -253,8 +253,7 @@ class BookingRepository:
             if ride.status not in ("open", "full") or ride.departure_time <= now:  # "full" is expected: it holds this request
                 raise RideNotBookableError
             self._db.execute(_APPROVE_BOOKING, {"id_booking": id_booking, "now": now})
-            if remaining == 0:
-                self._reject_pending_when_full(ride.id_ride, now, emit)
+            # Seats were held at request time, so approving changes no counts and nobody else needs rejecting.
             result = self._read(id_booking)
             self._emit(emit, "booking_accepted", ride.id_ride, id_booking, booking.id_rider, seats=booking.seats_booked)
             self._db.commit()

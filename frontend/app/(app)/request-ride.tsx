@@ -292,6 +292,7 @@ function ResultCard({ ride, seats, onAuthError, onAvailabilityChanged }: { ride:
             </View>
             <View style={styles.driverBox}>
                 <PersonCard
+                    userId={ride.driver.userId}
                     size="compact"
                     role="Driver"
                     name={driver}

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Colors } from '../constants/Colors';
+import { profileHref } from '../services/users';
 import { timeAgo } from '../services/format';
 import { RideRequest, RideRequestError, approveRequest, declineRequest } from '../services/rideRequests';
 import { CURRENCY } from '../constants/Currency';
@@ -12,6 +14,7 @@ const theme = Colors.light;
 
 /** One pending request with Approve / Decline. Reloads the list after, so seat counts refresh. */
 export function RequestRow({ req, onHandled, onAuthError }: { req: RideRequest; onHandled: () => void; onAuthError: (e: unknown) => string }) {
+    const router = useRouter();
     const [busy, setBusy] = useState<'approve' | 'decline' | null>(null);
     const [confirmDecline, setConfirmDecline] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -32,7 +35,12 @@ export function RequestRow({ req, onHandled, onAuthError }: { req: RideRequest; 
 
     return (
         <View style={styles.requestRow}>
-            <View style={styles.who}>
+            <Pressable
+                style={({ pressed }) => [styles.who, pressed && { opacity: 0.7 }]}
+                onPress={() => router.push(profileHref(req.idRider, { name: req.riderName, photo: req.riderPhotoUrl, role: 'Rider' }))}
+                accessibilityRole="button"
+                accessibilityLabel={`${req.riderName}, ${req.seats} seat${req.seats === 1 ? '' : 's'}. View profile`}
+            >
                 {req.riderPhotoUrl ? (
                     <Image source={{ uri: req.riderPhotoUrl }} style={styles.photo} />
                 ) : (
@@ -42,9 +50,9 @@ export function RequestRow({ req, onHandled, onAuthError }: { req: RideRequest; 
                     <Text style={styles.requestText}>
                         {req.riderName} · {req.seats} seat{req.seats === 1 ? '' : 's'} · {CURRENCY}{money(req.totalAmount)}
                     </Text>
-                    <Text style={styles.hint}>Requested {timeAgo(req.createdAt)}</Text>
+                    <Text style={styles.hint}>Requested {timeAgo(req.createdAt)} · <Text style={styles.profileLink}>View profile</Text></Text>
                 </View>
-            </View>
+            </Pressable>
             {req.note ? <Text style={styles.note}>“{req.note}”</Text> : null}
             {done ? (
                 <Badge label={done} tone={done === 'Approved' ? 'success' : 'muted'} />
@@ -103,6 +111,7 @@ export function RideRequestList({ requests, onHandled, onAuthError, title = 'Sea
 }
 
 const styles = StyleSheet.create({
+    profileLink: { color: theme.primary, fontWeight: '700' },
     error: { fontSize: 14, color: theme.error },
     hint: { fontSize: 13, color: theme.muted },
     cancelText: { fontSize: 14, fontWeight: '700', color: theme.error },
