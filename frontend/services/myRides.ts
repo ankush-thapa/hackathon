@@ -78,8 +78,30 @@ export async function findMyRide(idRide: string): Promise<MyRide | null> {
     }
 }
 
-export const fetchMyBookings = (scope: Scope, cursor?: string | null) =>
-    request<Page<MyBooking>>(`/v1/me/bookings?${query(scope, cursor)}`);
+const bookingCache = new Map<string, MyBooking>();
+
+export async function fetchMyBookings(scope: Scope, cursor?: string | null) {
+    const page = await request<Page<MyBooking>>(`/v1/me/bookings?${query(scope, cursor)}`);
+    page.items.forEach(b => bookingCache.set(b.id_booking, b));
+    return page;
+}
+
+export const cachedMyBooking = (idBooking: string) => bookingCache.get(idBooking) ?? null;
+
+/** One of my bookings by id: pages through /v1/me/bookings (upcoming, then all). Null if not mine. */
+export async function findMyBooking(idBooking: string, maxPages = 10): Promise<MyBooking | null> {
+    for (const scope of ['upcoming', 'all'] as const) {
+        let cursor: string | null = null;
+        for (let i = 0; i < maxPages; i++) {
+            const page: Page<MyBooking> = await fetchMyBookings(scope, cursor);
+            const hit = page.items.find(b => b.id_booking === idBooking);
+            if (hit) return hit;
+            if (!page.next_page) break;
+            cursor = page.next_page;
+        }
+    }
+    return null;
+}
 
 /** POST /v1/ride/booking/{id}/cancel: the rider cancels their own request or booking. */
 export const cancelBooking = (idBooking: string, reason?: string) =>

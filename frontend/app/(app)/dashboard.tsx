@@ -145,7 +145,7 @@ export default function DashboardScreen() {
                         onPress={() =>
                             t.kind === 'driving'
                                 ? router.push({ pathname: '/my-rides/[id]', params: { id: t.ride.id_ride } })
-                                : router.push('/my-rides')
+                                : router.push({ pathname: '/my-rides/booking/[id]', params: { id: t.booking.id_booking } })
                         }
                     />
                 ))
