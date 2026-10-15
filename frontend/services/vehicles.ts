@@ -1,4 +1,5 @@
 import { API_URL } from '../constants/Config';
+import { ApiError, request } from './api';
 import { MediaError, uploadImage } from './media';
 import { authHeader, clearSession } from './session';
 import { createStore, useStore } from './store/createStore';
@@ -66,7 +67,9 @@ export const isValidRegistration = (value: string) => {
 };
 
 // --- POST /v1/vehicles -----------------------------------------------------------------------
-type VehicleResponse = {
+// POST /v1/vehicles answers in snake_case (AddVehicleResponse); GET /v1/vehicles and the
+// other vehicle endpoints answer in camelCase (VehicleResponse). Accept both.
+type SnakeVehicle = {
     id: string;
     photo_url: string | null;
     make: string;
@@ -78,6 +81,19 @@ type VehicleResponse = {
     is_default: boolean;
     status: string;
 };
+type CamelVehicle = {
+    vehicleId: string;
+    photoUrl?: string | null;
+    make: string;
+    model: string;
+    color: string;
+    registrationNumber: string;
+    seatCapacity: number;
+    vehicleType: VehicleType;
+    isDefault: boolean;
+    status: string;
+};
+type VehicleResponse = SnakeVehicle | CamelVehicle;
 
 const API_FIELDS: Record<string, VehicleField> = {
     photo_url: 'photo',
@@ -88,17 +104,30 @@ const API_FIELDS: Record<string, VehicleField> = {
     seat_capacity: 'seatCapacity',
 };
 
-const fromApi = (v: VehicleResponse): Vehicle => ({
-    id: v.id,
-    photoUrl: v.photo_url,
-    make: v.make,
-    model: v.model,
-    registrationNumber: v.registration_number,
-    colour: v.colour,
-    seatCapacity: v.seat_capacity,
-    vehicleType: v.vehicle_type,
-    isDefault: v.is_default,
-});
+const fromApi = (v: VehicleResponse): Vehicle =>
+    'vehicleId' in v
+        ? {
+            id: String(v.vehicleId),
+            photoUrl: v.photoUrl ?? null,
+            make: v.make,
+            model: v.model,
+            registrationNumber: v.registrationNumber,
+            colour: v.color,
+            seatCapacity: v.seatCapacity,
+            vehicleType: v.vehicleType,
+            isDefault: v.isDefault,
+        }
+        : {
+            id: String(v.id),
+            photoUrl: v.photo_url,
+            make: v.make,
+            model: v.model,
+            registrationNumber: v.registration_number,
+            colour: v.colour,
+            seatCapacity: v.seat_capacity,
+            vehicleType: v.vehicle_type,
+            isDefault: v.is_default,
+        };
 
 /** Uploads the photo, then creates the vehicle for the logged-in user. Throws VehicleError. */
 export async function addVehicle(input: NewVehicle): Promise<Vehicle> {
@@ -148,6 +177,24 @@ export async function addVehicle(input: NewVehicle): Promise<Vehicle> {
     const vehicle = fromApi(data as VehicleResponse);
     store.set(list => [...(vehicle.isDefault ? list.map(v => ({ ...v, isDefault: false })) : list), vehicle]);
     return vehicle;
+}
+
+// --- GET /v1/vehicles ------------------------------------------------------------------------
+// The backend team is building this endpoint. Until it exists (404/405), callers fall back to
+// the vehicles added in this session. Accepts either a plain list or { items: [...] }.
+export class VehicleListNotReady extends Error {}
+
+export async function fetchMyVehicles(): Promise<Vehicle[]> {
+    let data: VehicleResponse[] | { items: VehicleResponse[] };
+    try {
+        data = await request<VehicleResponse[] | { items: VehicleResponse[] }>('/v1/vehicles');
+    } catch (e) {
+        if (e instanceof ApiError && (e.status === 404 || e.status === 405)) throw new VehicleListNotReady('Vehicle list API not available yet');
+        throw e;
+    }
+    const list = (Array.isArray(data) ? data : data.items ?? []).filter(v => !v.status || v.status === 'active').map(fromApi);
+    store.set(list);
+    return list;
 }
 
 /** Local only for now (no delete API yet). */

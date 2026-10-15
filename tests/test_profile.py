@@ -90,3 +90,5 @@ def test_second_post_updates_and_replaces(client, user_id):
 )
 def test_validation_422(client, user_id, patch):
     assert client.post(URL, json=payload(user_id, **patch)).status_code == 422
+
+

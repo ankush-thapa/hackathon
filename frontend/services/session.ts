@@ -43,6 +43,12 @@ export function getSession(): Session | null {
     return current;
 }
 
+/** Patch the stored session, e.g. after the profile is saved. */
+export function updateSession(patch: Partial<Session>) {
+    const s = getSession();
+    if (s) setSession({ ...s, ...patch });
+}
+
 export function clearSession() {
     current = null;
     try { storage()?.removeItem(KEY); } catch { /* storage unavailable */ }
