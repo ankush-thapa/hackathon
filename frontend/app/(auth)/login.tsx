@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
-import { Link, useRouter } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { AuthScreen } from '../../components/AuthScreen';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
@@ -19,8 +19,11 @@ export default function LoginScreen() {
     const theme = Colors.light;
     const router = useRouter();
     const passwordRef = useRef<TextInput>(null);
+    // Set by the sign-up page after a successful registration.
+    const params = useLocalSearchParams<{ registered?: string; identifier?: string }>();
+    const justRegistered = params.registered === '1';
 
-    const [identifier, setIdentifier] = useState('');
+    const [identifier, setIdentifier] = useState(params.identifier ?? '');
     const [password, setPassword] = useState('');
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -49,6 +52,13 @@ export default function LoginScreen() {
 
     return (
         <AuthScreen title="Welcome back" subtitle="Log in to find or offer a ride.">
+            {justRegistered ? (
+                <View style={[styles.success, { backgroundColor: theme.successBg, borderColor: theme.success }]}>
+                    <Text style={[styles.successText, { color: theme.success }]}>
+                        Account created. Log in with your new password.
+                    </Text>
+                </View>
+            ) : null}
             <TextField
                 label="Email or phone"
                 placeholder="you@example.com or phone number"
@@ -90,6 +100,8 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
+    success: { borderWidth: 1, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14 },
+    successText: { fontSize: 14, fontWeight: '600' },
     formError: { fontSize: 14, textAlign: 'center' },
     actions: { marginTop: 6, gap: 16 },
     footnote: { fontSize: 14, textAlign: 'center' },

@@ -35,22 +35,39 @@ export default function SignupScreen() {
     const [submitted, setSubmitted] = useState(false);
     const [loading, setLoading] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
+    // Errors the server returned for a field (e.g. "already registered"); cleared when that field is edited.
+    const [serverErrors, setServerErrors] = useState<Errors>({});
 
-    const set = (key: keyof Form) => (value: string) => setForm(prev => ({ ...prev, [key]: value }));
-    const errors = submitted ? validate(form) : {};
+    const set = (key: keyof Form) => (value: string) => {
+        setForm(prev => ({ ...prev, [key]: value }));
+        setServerErrors(prev => ({ ...prev, [key]: undefined }));
+    };
+    const local = submitted ? validate(form) : {};
+    const errors: Errors = {
+        email: local.email ?? serverErrors.email,
+        phone: local.phone ?? serverErrors.phone,
+        password: local.password ?? serverErrors.password,
+        confirm: local.confirm,
+    };
 
     const onSubmit = async () => {
         setSubmitted(true);
         setFormError(null);
+        setServerErrors({});
         if (Object.values(validate(form)).some(Boolean)) return;
 
         setLoading(true);
         try {
-            await signup({ email: form.email, phone: form.phone, password: form.password });
-            // TODO: persist the token, and add OTP/email verification here if the backend requires it.
-            router.replace('/home');
+            const created = await signup({ email: form.email, phone: form.phone, password: form.password });
+            // Register doesn't return a session, so send the user to log in with their new account.
+            // TODO: add OTP/email verification here once the backend supports it.
+            router.replace({ pathname: '/login', params: { registered: '1', identifier: created.email } });
         } catch (err) {
-            setFormError(err instanceof AuthError ? err.message : 'Something went wrong. Please try again.');
+            if (err instanceof AuthError && err.field) {
+                setServerErrors({ [err.field]: err.message });
+            } else {
+                setFormError(err instanceof AuthError ? err.message : 'Something went wrong. Please try again.');
+            }
         } finally {
             setLoading(false);
         }
@@ -78,6 +95,7 @@ export default function SignupScreen() {
                 value={form.phone}
                 onChangeText={set('phone')}
                 error={errors.phone}
+                hint="Include your country code, e.g. +971"
                 keyboardType="phone-pad"
                 autoComplete="tel"
                 textContentType="telephoneNumber"
@@ -89,6 +107,7 @@ export default function SignupScreen() {
                 ref={passwordRef}
                 label="Password"
                 placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                hint="Use letters and at least one number"
                 value={form.password}
                 onChangeText={set('password')}
                 error={errors.password}

@@ -1,8 +1,12 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Optional leading +, then 7–15 digits. Spaces, dashes and brackets are ignored.
+// Login: optional leading +, then 7–15 digits. Spaces, dashes and brackets are ignored.
 const PHONE_RE = /^\+?\d{7,15}$/;
+// Sign-up: must match the backend's E.164 rule (+, country code, 8–15 digits in total).
+const E164_RE = /^\+[1-9]\d{7,14}$/;
 
 export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 50;
+export const MAX_EMAIL_LENGTH = 254;
 
 export const normalizePhone = (value: string) => value.replace(/[\s\-()]/g, '');
 
@@ -18,16 +22,21 @@ export function validateIdentifier(value: string): string | undefined {
 export function validateEmail(value: string): string | undefined {
     if (!value.trim()) return 'Enter your email';
     if (!isEmail(value)) return 'Enter a valid email';
+    if (value.trim().length > MAX_EMAIL_LENGTH) return 'Email is too long';
 }
 
 export function validatePhone(value: string): string | undefined {
     if (!value.trim()) return 'Enter your phone number';
-    if (!isPhone(value)) return 'Enter a valid phone number';
+    const phone = normalizePhone(value.trim());
+    if (!phone.startsWith('+')) return 'Start with + and your country code, e.g. +971';
+    if (!E164_RE.test(phone)) return 'Enter a valid phone number with country code';
 }
 
 export function validatePassword(value: string): string | undefined {
     if (!value) return 'Enter a password';
     if (value.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters`;
+    if (value.length > MAX_PASSWORD_LENGTH) return `Use at most ${MAX_PASSWORD_LENGTH} characters`;
+    if (!/[A-Za-z]/.test(value) || !/\d/.test(value)) return 'Include at least one letter and one number';
 }
 
 export function validateConfirmPassword(password: string, confirm: string): string | undefined {
