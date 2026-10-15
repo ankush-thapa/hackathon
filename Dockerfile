@@ -14,4 +14,4 @@ COPY . .
 # Environment variables for the container
 ENV DATABASE_URL=mysql+mysqlconnector://user:password@db:3306/hackathon
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+CMD ["sh", "-c", "python -m alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]

@@ -9,7 +9,7 @@ from app.api.users import router as users_router
 from app.core.config import settings
 from app.core.ids import new_id
 from app.core.security import hash_password
-from app.db.session import Base, SessionLocal, engine
+from app.db.session import SessionLocal
 from app.models import User, UserProfile
 
 SEED_USERS = ["World", "Alice", "Bob", "Charlie", "Diana"]
@@ -17,8 +17,7 @@ SEED_USERS = ["World", "Alice", "Bob", "Charlie", "Diana"]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Dev convenience: create tables and seed demo users. Use migrations for real apps.
-    Base.metadata.create_all(bind=engine)
+    # Entrypoints run Alembic before startup; retain the existing demo seed users.
     with SessionLocal() as db:
         pw_hash = hash_password("Password1")
         for name in SEED_USERS:

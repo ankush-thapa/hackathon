@@ -11,6 +11,12 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", 'MYSQL_PWD="$${MYSQL_PASSWORD}" mysql -h 127.0.0.1 -u"$${MYSQL_USER}" "$${MYSQL_DATABASE}" -e "SELECT 1" >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
 
   app:
     build: .
@@ -21,7 +27,8 @@ services:
     environment:
       - DATABASE_URL=mysql+mysqlconnector://user:password@db:3306/hackathon
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
 volumes:
   mysql_data:
