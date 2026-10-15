@@ -1,10 +1,12 @@
 import base64
-from decimal import Decimal
 from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
 
-from app.repositories.ride_repo import RideRepository
+from app.core.ids import new_id
+from app.repositories.ride_repo import RideRepository, StationNotFoundError
 from app.schemas.ride import (
     DriverSummary,
+    OfferRideRequest,
     RideListResponse,
     RideSummary,
     StationRef,
@@ -12,9 +14,8 @@ from app.schemas.ride import (
 )
 
 
-class StationNotFoundError(Exception):
-    def __init__(self, field: str):
-        self.field = field
+class DepartureInPastError(Exception):
+    pass
 
 
 class InvalidCursorError(Exception):
@@ -44,6 +45,17 @@ def _decode_cursor(cursor: str) -> tuple[str, datetime, int]:
 class RideService:
     def __init__(self, rides: RideRepository):
         self._rides = rides
+
+    def offer(self, driver_id: int, request: OfferRideRequest) -> dict:
+        if request.departure_time <= datetime.now(timezone.utc):
+            raise DepartureInPastError
+        params = request.model_dump()
+        params.update(id_ride=new_id(), id_driver=driver_id)
+        # DATETIME(3) stores naive UTC, while the public API requires timezones.
+        for field in ("departure_time", "estimated_arrival_time"):
+            if params[field] is not None:
+                params[field] = params[field].replace(tzinfo=None)
+        return self._rides.create(params)
 
     def search(
         self,
