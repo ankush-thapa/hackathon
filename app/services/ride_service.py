@@ -40,10 +40,12 @@ class RideService:
         id_destination_station: int,
         departure_date: date,
         seats: int,
+        exclude_driver_id: int,
         page_size: int,
         cursor: str | None,
     ) -> RideListResponse:
-        """Open rides between two stations departing on `departure_date` (UTC day) with enough free seats.
+        """Open rides between two stations departing on `departure_date` (UTC day) with enough free seats,
+        excluding rides offered by `exclude_driver_id` (the caller).
 
         Raises StationNotFoundError / InvalidCursorError.
         """
@@ -61,6 +63,7 @@ class RideService:
             id_source_station=id_source_station,
             id_destination_station=id_destination_station,
             seats=seats,
+            exclude_driver_id=exclude_driver_id,
             departure_from=max(day_start, now),  # never list rides that already left
             departure_until=day_start + timedelta(days=1),
             after=position if direction == "n" else None,

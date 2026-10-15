@@ -82,6 +82,7 @@ WHERE r.id_source_station = :id_source_station
   AND r.available_seats >= :seats
   AND r.departure_time >= :departure_from
   AND r.departure_time < :departure_until
+  AND r.id_driver <> :exclude_driver
 """
 _AFTER_CURSOR = "  AND (r.departure_time > :cursor_time OR (r.departure_time = :cursor_time AND r.id_ride > :cursor_id))\n"
 _BEFORE_CURSOR = "  AND (r.departure_time < :cursor_time OR (r.departure_time = :cursor_time AND r.id_ride < :cursor_id))\n"
@@ -134,6 +135,7 @@ class RideRepository:
         id_source_station: int,
         id_destination_station: int,
         seats: int,
+        exclude_driver_id: int,
         departure_from: datetime,
         departure_until: datetime,
         after: tuple[datetime, int] | None,
@@ -146,6 +148,7 @@ class RideRepository:
             "id_source_station": id_source_station,
             "id_destination_station": id_destination_station,
             "seats": seats,
+            "exclude_driver": exclude_driver_id,  # a driver never sees their own rides in search
             "departure_from": departure_from,  # inclusive
             "departure_until": departure_until,  # exclusive
             "limit": limit,

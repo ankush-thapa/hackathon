@@ -15,6 +15,10 @@ SRC, DST, OTHER = 1, 2, 3
 DRIVER = 1001
 
 
+def now_utc():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 def today():
     return datetime.now(timezone.utc).date()
 
@@ -64,7 +68,7 @@ def client():
         app.dependency_overrides[get_db] = prev_db
 
 
-def add_ride(client, *, src=SRC, dst=DST, depart=None, seats=3, total=4, status="open", price="25.50", vehicle=None):
+def add_ride(client, *, src=SRC, dst=DST, depart=None, seats=3, total=4, status="open", price="25.50", vehicle=None, driver=DRIVER):
     rid = client.next_id
     client.next_id += 1
     with client.session() as db:
@@ -74,7 +78,7 @@ def add_ride(client, *, src=SRC, dst=DST, depart=None, seats=3, total=4, status=
                 "departure_time, total_seats, available_seats, price_per_seat, status, version) "
                 "VALUES (:id, :drv, :veh, :s, :d, :t, :total, :seats, :price, :status, 1)"
             ),
-            {"id": rid, "drv": DRIVER, "veh": vehicle or 7, "s": src, "d": dst, "t": depart or at(1), "total": total,
+            {"id": rid, "drv": driver, "veh": vehicle or 7, "s": src, "d": dst, "t": depart or at(1), "total": total,
              "seats": seats, "price": price, "status": status},
         )
         db.commit()
@@ -111,6 +115,23 @@ def test_filters_by_stations_and_returns_details(client):
     assert r.json()["next_page"] is None and r.json()["prev_page"] is None
 
 
+def test_own_rides_are_not_listed(client):
+    with client.session() as db:
+        db.execute(text("INSERT INTO `user` (id_user, email, password_hash) VALUES (2002, 'e@x.co', 'h')"))
+        db.commit()
+    mine = add_ride(client, depart=at(1, 2))  # offered by DRIVER (1001)
+    theirs = add_ride(client, depart=at(1, 3), driver=2002)
+    # the caller is a rider (42): sees both
+    assert ids(client.get(URL, params=params())) == [mine, theirs]
+    # the caller is the driver of `mine`: it disappears from their search, the other driver's ride stays
+    app.dependency_overrides[get_current_user_id] = lambda: DRIVER
+    r = client.get(URL, params=params())
+    assert ids(r) == [theirs]
+    # ...and the exclusion does not break paging
+    page = client.get(URL, params=params(pageSize=1)).json()
+    assert [i["idRide"] for i in page["items"]] == [theirs] and page["next_page"] is None
+
+
 def test_filters_by_available_seats(client):
     one = add_ride(client, seats=1, depart=at(1, 2))
     three = add_ride(client, seats=3, depart=at(1, 3))
@@ -136,7 +157,18 @@ def test_never_lists_rides_that_already_left(client):
     add_ride(client, depart=now - timedelta(hours=1))
     add_ride(client, depart=now - timedelta(minutes=1))
     assert ids(client.get(URL, params=params(departureDate=today().isoformat()))) == []
-    assert ids(client.get(URL, params=params(departureDate=day(-1)))) == []  # a past date lists nothing
+
+
+@pytest.mark.parametrize("days_ago", [1, 2, 365])
+def test_past_dates_are_rejected(client, days_ago):
+    add_ride(client, depart=at(-days_ago, 12))  # even if a ride exists on that date
+    r = client.get(URL, params=params(departureDate=day(-days_ago)))
+    assert r.status_code == 422 and r.json()["detail"] == "departureDate must not be in the past"
+
+
+def test_today_is_allowed(client):
+    r = client.get(URL, params=params(departureDate=today().isoformat()))
+    assert r.status_code == 200 and r.json()["items"] == []  # nothing offered, but today itself is a valid date
 
 
 def test_only_open_rides(client):
