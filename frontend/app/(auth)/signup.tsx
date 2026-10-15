@@ -47,7 +47,6 @@ export default function SignupScreen() {
         setLoading(true);
         try {
             await signup({ email: form.email, phone: form.phone, password: form.password });
-            // TODO: persist the token, and add OTP/email verification here if the backend requires it.
             router.replace('/profile-setup');
         } catch (err) {
             setFormError(err instanceof AuthError ? err.message : 'Something went wrong. Please try again.');
@@ -88,7 +87,7 @@ export default function SignupScreen() {
             <TextField
                 ref={passwordRef}
                 label="Password"
-                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+                placeholder={`At least ${MIN_PASSWORD_LENGTH} characters, incl. a number`}
                 value={form.password}
                 onChangeText={set('password')}
                 error={errors.password}

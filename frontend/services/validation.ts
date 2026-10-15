@@ -1,8 +1,9 @@
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Optional leading +, then 7–15 digits. Spaces, dashes and brackets are ignored.
-const PHONE_RE = /^\+?\d{7,15}$/;
+// E.164 (what the backend requires): +, country code, 8–15 digits total. Spaces, dashes and brackets are ignored.
+const PHONE_RE = /^\+[1-9]\d{7,14}$/;
 
 export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 50;
 
 export const normalizePhone = (value: string) => value.replace(/[\s\-()]/g, '');
 
@@ -22,12 +23,14 @@ export function validateEmail(value: string): string | undefined {
 
 export function validatePhone(value: string): string | undefined {
     if (!value.trim()) return 'Enter your phone number';
-    if (!isPhone(value)) return 'Enter a valid phone number';
+    if (!isPhone(value)) return 'Enter your number with country code, e.g. +971 50 123 4567';
 }
 
 export function validatePassword(value: string): string | undefined {
     if (!value) return 'Enter a password';
     if (value.length < MIN_PASSWORD_LENGTH) return `Use at least ${MIN_PASSWORD_LENGTH} characters`;
+    if (value.length > MAX_PASSWORD_LENGTH) return `Use at most ${MAX_PASSWORD_LENGTH} characters`;
+    if (!/[a-z]/i.test(value) || !/\d/.test(value)) return 'Use at least one letter and one number';
 }
 
 export function validateConfirmPassword(password: string, confirm: string): string | undefined {

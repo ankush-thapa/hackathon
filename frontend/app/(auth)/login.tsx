@@ -38,8 +38,7 @@ export default function LoginScreen() {
         setLoading(true);
         try {
             await login(identifier, password);
-            // TODO: persist the token (e.g. expo-secure-store) once the backend returns real ones.
-            router.replace('/home');
+            router.replace('/dashboard');
         } catch (err) {
             setFormError(err instanceof AuthError ? err.message : 'Something went wrong. Please try again.');
         } finally {
