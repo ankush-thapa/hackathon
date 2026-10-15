@@ -3,12 +3,12 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 import { Colors } from '../../constants/Colors';
 import { API_URL } from '../../constants/Config';
 
-type UserId = { id: number };
+type UserId = { id: string };
 
 export default function UsersScreen() {
     const theme = Colors.light;
-    const [userIds, setUserIds] = useState<number[]>([]);
-    const [greetings, setGreetings] = useState<Record<number, string>>({});
+    const [userIds, setUserIds] = useState<string[]>([]);
+    const [greetings, setGreetings] = useState<Record<string, string>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -20,7 +20,7 @@ export default function UsersScreen() {
             .finally(() => setLoading(false));
     }, []);
 
-    const reveal = async (id: number) => {
+    const reveal = async (id: string) => {
         if (greetings[id]) return;
         try {
             const res = await fetch(`${API_URL}/hello/${id}`);

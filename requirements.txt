@@ -5,3 +5,5 @@ mysql-connector-python
 pydantic-settings
 httpx
 pytest
+alembic
+pyjwt

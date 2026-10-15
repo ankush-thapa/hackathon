@@ -9,4 +9,5 @@ router = APIRouter()
 
 @router.get("/users")
 def list_users(db: Session = Depends(get_db)):
-    return [{"id": user_id} for (user_id,) in db.query(User.id).order_by(User.id)]
+    # IDs are 63-bit snowflakes: serialize as strings so JS clients don't lose precision.
+    return [{"id": str(user_id)} for (user_id,) in db.query(User.id_user).order_by(User.id_user)]
