@@ -120,7 +120,7 @@ export async function offerRide(input: OfferRideInput): Promise<Ride> {
             const field = OFFER_FIELDS[msg.split(':')[0]];
             throw new OfferError(msg, field);
         }
-        if (e.status === 409) throw new OfferError('Something changed while saving. Please try again.');
+        if (e.status === 409) throw new OfferError(msg);
         throw new OfferError(msg);
     }
 

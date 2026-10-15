@@ -16,6 +16,7 @@ from app.api.notifications import router as notifications_router
 from app.api.me import router as me_router
 from app.api.profile import router as profile_router
 from app.api.rides import router as rides_router
+from app.api.ride_availability import router as availability_router
 from app.api.ride_actions import router as ride_actions_router
 from app.api.account import router as account_router
 from app.api.documents import router as documents_router
@@ -55,6 +56,7 @@ app.include_router(account_router)
 app.include_router(documents_router)
 app.include_router(notification_history_router)
 app.include_router(profile_router)
+app.include_router(availability_router)
 app.include_router(rides_router)
 app.include_router(ride_actions_router)
 app.include_router(notifications_router)

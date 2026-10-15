@@ -46,7 +46,7 @@ def update_ride(id_ride: Id, request: RideUpdateRequest,
     """Partial update using offer payload field names; omitted fields are retained.
 
     Vehicle/route/departure/price cannot change while active bookings exist.
-    total_seats cannot fall below accepted seats. notes and estimated_arrival_time may be cleared with null.
+    total_seats cannot fall below the seats held by pending requests and accepted bookings. notes and estimated_arrival_time may be cleared with null.
     """
     try:
         return ride_response(service.update(id_ride, user, request))
