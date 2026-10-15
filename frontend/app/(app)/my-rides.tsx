@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { useRouter } from 'expo-router';
 import { Badge, Card, EmptyState, Screen, SecondaryButton, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
+import { CancelBooking } from '../../components/CancelBooking';
 import { RideRequestList } from '../../components/RideRequestRow';
 import { departureLabel } from '../../services/format';
 import { useProfile } from '../../services/profile';
@@ -252,6 +253,7 @@ function OfferedCard({ ride, requests, onHandled, onAuthError }: {
 function BookingCard({ booking, canCancel, onCancelled }: {
     booking: MyBooking; canCancel: boolean; onCancelled: (id: string) => void;
 }) {
+    const router = useRouter();
     const { ride } = booking;
     const status = BOOKING_STATUS[booking.status];
     const car = vehicleText(ride.vehicle);
@@ -270,57 +272,11 @@ function BookingCard({ booking, canCancel, onCancelled }: {
             </Text>
             <Text style={styles.meta}>With {driver}{car ? ` · ${car}` : ''}</Text>
             {booking.rider_note ? <Text style={styles.note}>“{booking.rider_note}”</Text> : null}
+            <View style={styles.cardLinks}>
+                <TextLink label="View details" onPress={() => router.push({ pathname: '/my-rides/booking/[id]', params: { id: booking.id_booking } })} />
+            </View>
             {cancellable ? <CancelBooking booking={booking} onCancelled={onCancelled} /> : null}
         </Card>
-    );
-}
-
-/** Two-step cancel so a stray tap doesn't cancel (no native confirm dialogs). */
-function CancelBooking({ booking, onCancelled }: { booking: MyBooking; onCancelled: (id: string) => void }) {
-    const [confirming, setConfirming] = useState(false);
-    const profile = useProfile();
-    const [busy, setBusy] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const confirm = async () => {
-        setBusy(true);
-        setError(null);
-        try {
-            await cancelBooking(booking.id_booking);
-            onCancelled(booking.id_booking);
-            // Tell the driver (best effort; the cancellation already succeeded).
-        } catch (e) {
-            setError(e instanceof MyRidesError ? e.message : 'Could not cancel. Please try again.');
-            setBusy(false);
-        }
-    };
-
-    if (!confirming) {
-        return (
-            <Pressable onPress={() => setConfirming(true)} accessibilityRole="button" hitSlop={8} style={styles.cancel}>
-                <Text style={styles.cancelText}>{booking.status === 'requested' ? 'Cancel request' : 'Cancel booking'}</Text>
-            </Pressable>
-        );
-    }
-    return (
-        <View style={{ gap: 4, marginTop: 6 }}>
-            <View style={styles.confirmRow}>
-                <Text style={styles.confirmText}>Cancel this booking?</Text>
-                {busy ? (
-                    <ActivityIndicator color={theme.primary} />
-                ) : (
-                    <>
-                        <Pressable onPress={() => setConfirming(false)} accessibilityRole="button" hitSlop={8}>
-                            <Text style={styles.keepText}>Keep</Text>
-                        </Pressable>
-                        <Pressable onPress={confirm} accessibilityRole="button" hitSlop={8}>
-                            <Text style={styles.cancelText}>Yes, cancel</Text>
-                        </Pressable>
-                    </>
-                )}
-            </View>
-            {error ? <Text style={styles.error}>{error}</Text> : null}
-        </View>
     );
 }
 
@@ -341,6 +297,7 @@ function Empty({ kind, scope, onRequest, onOffer }: { kind: Kind; scope: 'upcomi
 }
 
 const styles = StyleSheet.create({
+    cardLinks: { marginTop: 4 },
     segmented: { flexDirection: 'row', backgroundColor: theme.border, borderRadius: 12, padding: 4 },
     segment: { flex: 1, paddingVertical: 10, borderRadius: 9, alignItems: 'center' },
     segmentActive: {
