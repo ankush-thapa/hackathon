@@ -69,7 +69,7 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
             connection.exec_driver_sql("INSERT INTO user (id, name) VALUES (1, 'Alice')")
     elif baseline == "main_schema":
         for table in Base.metadata.sorted_tables:
-            if table.name != "vehicle":
+            if table.name not in ("vehicle", "user_session"):
                 table.create(engine)
         with engine.begin() as connection:
             connection.exec_driver_sql(
@@ -82,7 +82,7 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
     with engine.connect() as connection:
         migration_context = MigrationContext.configure(connection, opts={"compare_type": True})
         assert compare_metadata(migration_context, Base.metadata) == []
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0003_optional_user_name"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0004_user_session"
         if baseline == "legacy":
             row = connection.execute(text(
                 "SELECT u.id_user, u.user_name, u.status, p.full_name "
