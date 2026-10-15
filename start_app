@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # Starts MySQL (docker), the FastAPI backend and the Expo frontend. Ctrl+C stops everything.
-#   ./start_app                 backend + frontend
-#   ./start_app --backend-only  backend only (API at http://localhost:8000/docs)
+#   ./start_app                  backend only (API at http://localhost:8000/docs)
+#   ./start_app --with-frontend  backend + Expo frontend
 set -euo pipefail
 cd "$(dirname "$0")"
 PROJECT_DIR="$(pwd)"
 API_PORT=8000
 
-backend_only=false
+backend_only=true
 case "${1:-}" in
-    --backend-only) backend_only=true ;;
-    "") ;;
-    *) echo "usage: $0 [--backend-only]" >&2; exit 2 ;;
+    --with-frontend) backend_only=false ;;
+    --backend-only | "") ;;  # --backend-only kept for old habits; it is the default
+    *) echo "usage: $0 [--with-frontend]" >&2; exit 2 ;;
 esac
 
 # Stop servers left running by an earlier start_app of this project (they hold the ports).

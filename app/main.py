@@ -9,6 +9,8 @@ from app.api.hello import router as hello_router
 from app.api.media import MEDIA_URL_PATH
 from app.api.media import router as media_router
 from app.api.profile import router as profile_router
+from app.api.rides import router as rides_router
+from app.api.stations import router as stations_router
 from app.api.users import router as users_router
 from app.api.vehicles import router as vehicles_router
 from app.core.config import settings
@@ -40,6 +42,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(profile_router)
+app.include_router(rides_router)
+app.include_router(stations_router)
 app.include_router(media_router)
 app.include_router(vehicles_router)
 
