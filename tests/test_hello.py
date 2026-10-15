@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.db.session import Base, get_db
 from app.main import app
-from app.models import User
+from app.models import User, UserProfile
 
 engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
 TestingSession = sessionmaker(bind=engine)
@@ -24,20 +24,35 @@ app.dependency_overrides[get_db] = override_get_db
 client = TestClient(app)
 
 
-def test_hello_returns_user_name():
+def _add_user(db, uid, user_name, full_name=None):
+    db.merge(User(id_user=uid, user_name=user_name, password_hash="x"))
+    db.flush()
+    if full_name:
+        db.merge(UserProfile(id_user=uid, full_name=full_name))
+
+
+def test_hello_returns_profile_name():
     with TestingSession() as db:
-        db.merge(User(id=1, name="Alice"))
+        _add_user(db, 1, "alice", "Alice")
         db.commit()
     assert client.get("/hello/1").json() == {"message": "Hello Alice"}
+
+
+def test_hello_falls_back_to_user_name_without_profile():
+    with TestingSession() as db:
+        _add_user(db, 3, "carol")
+        db.commit()
+    assert client.get("/hello/3").json() == {"message": "Hello carol"}
 
 
 def test_hello_unknown_user_404():
     assert client.get("/hello/999").status_code == 404
 
 
-def test_list_users_returns_ids():
+def test_list_users_returns_string_ids():
     with TestingSession() as db:
-        db.merge(User(id=1, name="Alice"))
-        db.merge(User(id=2, name="Bob"))
+        _add_user(db, 1, "alice", "Alice")
+        _add_user(db, 2, "bob", "Bob")
         db.commit()
-    assert client.get("/users").json() == [{"id": 1}, {"id": 2}]
+    ids = [u["id"] for u in client.get("/users").json()]
+    assert {"1", "2"} <= set(ids)
