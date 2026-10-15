@@ -6,7 +6,6 @@ import { TextField } from '../../components/TextField';
 import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTitle, Stepper, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { dayLabel, nextDays, timeLabel } from '../../services/format';
-import { notifyBookingRequested } from '../../services/notifications';
 import { useProfile } from '../../services/profile';
 import { CURRENCY } from '../../constants/Currency';
 import {
@@ -21,7 +20,6 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
-import { useProfile } from '../../services/profile';
 import { notifyDriverOfRequest } from '../../services/rideRequests';
 import { getSession } from '../../services/session';
 
@@ -254,7 +252,6 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
     const total = Number(ride.pricePerSeat) * seats;
     const car = ride.vehicle ? `${ride.vehicle.color} ${ride.vehicle.make} ${ride.vehicle.model}` : null;
     const driver = ride.driver.fullName || 'Driver';
-    const profile = useProfile();
 
     const book = async () => {
         setBusy(true);
@@ -262,18 +259,6 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         try {
             const booking = await bookRide(ride.idRide, seats, note);
             setStep('done');
-<<<<<<< HEAD
-            // Tell the driver (best effort; the booking already succeeded).
-            notifyBookingRequested({
-                driverId: ride.driver.userId,
-                rideId: ride.idRide,
-                bookingId: booking.id_booking,
-                riderName: profile.fullName || 'A rider',
-                seats,
-                from: ride.source.name,
-                to: ride.destination.name,
-                departure: ride.departureTime,
-=======
             const s = getSession();
             notifyDriverOfRequest({
                 idDriver: ride.driver.userId,
@@ -283,7 +268,6 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
                 seats,
                 riderName: profile.fullName || s?.email?.split('@')[0] || 'A rider',
                 note,
->>>>>>> origin/main
             });
         } catch (e) {
             onAuthError(e);
