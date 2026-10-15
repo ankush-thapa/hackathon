@@ -2,6 +2,7 @@
 
 Every case owns and removes a randomly named database; application data is unused.
 """
+import json
 import os
 from pathlib import Path
 import uuid
@@ -236,6 +237,14 @@ def test_mysql_startup_seeding_uses_migrated_models(mysql_database, monkeypatch)
             pass
     with Session(engine) as session:
         users = session.query(User).all()
-        assert {user.user_name for user in users} == {"world", "alice", "bob", "charlie", "diana"}
-        assert all(user.profile.full_name for user in users)
-        assert all(verify_password("Password1", user.password_hash) for user in users)
+        from app.db.fixtures import FIXTURES_FILE
+
+        fixtures = json.loads(FIXTURES_FILE.read_text())
+        expected = {int(user["idUser"]): user for user in fixtures["users"]}
+        assert {user.id_user for user in users} == set(expected)
+        for user in users:
+            fixture = expected[user.id_user]
+            assert user.user_name == fixture.get("userName")
+            if fixture.get("profile"):
+                assert user.profile.full_name == fixture["profile"]["fullName"]
+            assert verify_password(fixtures["defaultPassword"], user.password_hash)
