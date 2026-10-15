@@ -139,7 +139,7 @@ function RideCard({ ride }: { ride: Ride }) {
                     </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.price}>{CURRENCY} {ride.pricePerSeat}</Text>
+                    <Text style={styles.price}>{CURRENCY}{ride.pricePerSeat}</Text>
                     <Text style={styles.meta}>per seat</Text>
                 </View>
             </View>

@@ -3,7 +3,7 @@ import { Image, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors } from '../constants/Colors';
-import { useUnreadCount } from '../services/notifications';
+import { resetNotifications, useUnreadCount } from '../services/notifications';
 import { resetProfile, useProfile } from '../services/profile';
 import { clearSession, getSession } from '../services/session';
 import { Avatar } from './Avatar';
@@ -24,6 +24,7 @@ export const AppHeader = ({ onMenuPress, showMenuButton }: Props) => {
 
     const logout = () => {
         clearSession();
+        resetNotifications();
         resetProfile();
         router.replace('/login');
     };

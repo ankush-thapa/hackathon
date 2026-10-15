@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Redirect, Stack } from 'expo-router';
 import { View, useWindowDimensions } from 'react-native';
 import { AppHeader } from '../../components/AppHeader';
+import { NotificationPoller } from '../../components/NotificationPoller';
 import { DrawerSidebar, PermanentSidebar } from '../../components/Sidebar';
 import { Colors } from '../../constants/Colors';
 import { getSession } from '../../services/session';
@@ -18,6 +19,7 @@ export default function AppLayout() {
 
     return (
         <View style={{ flex: 1, backgroundColor: Colors.light.background }}>
+            <NotificationPoller />
             <AppHeader showMenuButton={!wide} onMenuPress={() => setMenuOpen(true)} />
             <View style={{ flex: 1, flexDirection: 'row' }}>
                 {wide ? <PermanentSidebar /> : null}

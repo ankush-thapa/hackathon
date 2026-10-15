@@ -6,6 +6,8 @@ import { TextField } from '../../components/TextField';
 import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTitle, Stepper, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { dayLabel, nextDays, timeLabel } from '../../services/format';
+import { useProfile } from '../../services/profile';
+import { CURRENCY } from '../../constants/Currency';
 import {
     DaySearch,
     RideSearchError,
@@ -18,12 +20,10 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
-import { useProfile } from '../../services/profile';
 import { notifyDriverOfRequest } from '../../services/rideRequests';
 import { getSession } from '../../services/session';
 
 const theme = Colors.light;
-const CURRENCY = 'AED';
 const DAYS = nextDays(7);
 
 const money = (v: string | number) => {
@@ -281,7 +281,7 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         <Card>
             <View style={styles.cardTop}>
                 <Text style={styles.time}>{timeLabel(new Date(ride.departureTime))}</Text>
-                <Text style={styles.price}>{CURRENCY} {money(ride.pricePerSeat)}<Text style={styles.meta}>/seat</Text></Text>
+                <Text style={styles.price}>{CURRENCY}{money(ride.pricePerSeat)}<Text style={styles.meta}>/seat</Text></Text>
             </View>
             <View style={styles.route}>
                 <View style={styles.dots}>
@@ -320,12 +320,12 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
                         maxLength={255}
                     />
                     <FormError message={error} />
-                    <PrimaryButton title={`Request ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY} ${money(total)}`} onPress={book} loading={busy} />
+                    <PrimaryButton title={`Request ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY}${money(total)}`} onPress={book} loading={busy} />
                     {!busy ? <TextLink label="Cancel" onPress={() => { setStep('idle'); setError(null); }} /> : null}
                 </View>
             ) : (
                 <View style={{ marginTop: 8 }}>
-                    <SecondaryButton title={`Book ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY} ${money(total)}`} onPress={() => setStep('confirm')} />
+                    <SecondaryButton title={`Book ${seats} seat${seats === 1 ? '' : 's'} · ${CURRENCY}${money(total)}`} onPress={() => setStep('confirm')} />
                 </View>
             )}
         </Card>
