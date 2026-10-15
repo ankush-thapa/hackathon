@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../constants/Colors';
+import { formatPrice } from '../constants/Currency';
 import { departureLabel } from '../services/format';
 import { Ride } from '../services/rides';
 import { Vehicle, vehicleLabel } from '../services/vehicles';
@@ -36,7 +37,7 @@ export const RideCard = ({ ride, vehicle, footer }: { ride: Ride; vehicle?: Vehi
             </View>
             <Text style={styles.meta}>
                 {departureLabel(ride.departAt)} · {ride.role === 'driver' ? `${seats} offered` : `${seats} needed`}
-                {ride.pricePerSeat ? ` · AED ${ride.pricePerSeat}/seat` : ''}
+                {ride.pricePerSeat ? ` · ${formatPrice(ride.pricePerSeat)}/seat` : ''}
             </Text>
             {vehicle ? <Text style={styles.meta}>{vehicleLabel(vehicle)} · {vehicle.registrationNumber}</Text> : null}
             {ride.note ? <Text style={styles.note}>“{ride.note}”</Text> : null}
