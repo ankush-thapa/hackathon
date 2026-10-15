@@ -18,6 +18,9 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
+import { useProfile } from '../../services/profile';
+import { notifyDriverOfRequest } from '../../services/rideRequests';
+import { getSession } from '../../services/session';
 
 const theme = Colors.light;
 const CURRENCY = 'AED';
@@ -240,6 +243,7 @@ function StationPicker({ label, value, onChange, stations, exclude }: {
 
 function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: number; onAuthError: (e: unknown) => void }) {
     const router = useRouter();
+    const profile = useProfile();
     const [step, setStep] = useState<'idle' | 'confirm' | 'done'>('idle');
     const [note, setNote] = useState('');
     const [busy, setBusy] = useState(false);
@@ -253,8 +257,18 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         setBusy(true);
         setError(null);
         try {
-            await bookRide(ride.idRide, seats, note);
+            const booking = await bookRide(ride.idRide, seats, note);
             setStep('done');
+            const s = getSession();
+            notifyDriverOfRequest({
+                idDriver: ride.driver.userId,
+                idRide: ride.idRide,
+                idBooking: booking.id_booking,
+                departureTime: ride.departureTime,
+                seats,
+                riderName: profile.fullName || s?.email?.split('@')[0] || 'A rider',
+                note,
+            });
         } catch (e) {
             onAuthError(e);
             setError(e instanceof RideSearchError ? e.message : 'Could not send your request. Please try again.');
