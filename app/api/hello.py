@@ -12,4 +12,5 @@ def hello(user_id: int, db: Session = Depends(get_db)):
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"message": f"Hello {user.name}"}
+    name = user.profile.full_name if user.profile else user.user_name
+    return {"message": f"Hello {name}"}

@@ -6,8 +6,9 @@ cd "$(dirname "$0")"
 if [ ! -x venv/bin/python ]; then
     echo "Setting up Python venv..."
     python3 -m venv venv
-    venv/bin/pip install -q -r requirements.txt
 fi
+echo "Checking Python dependencies..."
+venv/bin/python -m pip install -q -r requirements.txt
 if [ ! -d frontend/node_modules ]; then
     echo "Installing frontend dependencies..."
     npm --prefix frontend install
@@ -16,6 +17,9 @@ fi
 echo "Starting MySQL..."
 docker compose up -d db
 until docker compose exec -T db mysqladmin ping -uuser -ppassword --silent >/dev/null 2>&1; do sleep 1; done
+
+echo "Applying database migrations..."
+venv/bin/python -m alembic upgrade head
 
 cleanup() {
     echo "Stopping backend..."
