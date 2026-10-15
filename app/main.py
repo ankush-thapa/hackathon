@@ -9,6 +9,7 @@ from app.api.bookings import router as bookings_router
 from app.api.hello import router as hello_router
 from app.api.media import MEDIA_URL_PATH
 from app.api.media import router as media_router
+from app.api.notifications import router as notifications_router
 from app.api.me import router as me_router
 from app.api.profile import router as profile_router
 from app.api.rides import router as rides_router
@@ -45,8 +46,12 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(rides_router)
+<<<<<<< HEAD
+app.include_router(notifications_router)
+=======
 app.include_router(bookings_router)
 app.include_router(me_router)
+>>>>>>> origin/main
 app.include_router(stations_router)
 app.include_router(media_router)
 app.include_router(vehicles_router)

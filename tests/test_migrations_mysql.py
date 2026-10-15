@@ -26,7 +26,7 @@ from app.main import app
 from app.models import DocType, Gender, User, UserDocument, UserProfile, Vehicle
 
 # Tables created by migrations after the original main-branch schema.
-POST_MAIN_TABLES = {"vehicle", "user_session", "station", "ride", "ride_booking"}
+POST_MAIN_TABLES = {"vehicle", "user_session", "station", "ride", "ride_booking", "notification"}
 
 
 @pytest.fixture
@@ -86,7 +86,7 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
     with engine.connect() as connection:
         migration_context = MigrationContext.configure(connection, opts={"compare_type": True})
         assert compare_metadata(migration_context, Base.metadata) == []
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0008_merge_heads"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_notification"
         stations = connection.execute(text("SELECT id_station, station_name FROM station ORDER BY id_station")).all()
         assert len(stations) == 26 and tuple(stations[0]) == (1, "Cyber City")
         assert tuple(stations[16]) == (17, "Medanta – The Medicity")
