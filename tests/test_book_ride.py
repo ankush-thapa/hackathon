@@ -58,10 +58,16 @@ def test_book_creates_requested_booking(client, ride):
     assert (row["id_rider"], row["seats_booked"], row["status"]) == (client.user_id, 2, "requested")
 
 
-def test_booking_request_does_not_hold_seats_yet(client, ride):
+def test_a_request_holds_its_seats_straight_away(client, ride):
+    assert book(client, {"id_ride": ride, "seats": 2}).status_code == 201
+    with client.session() as db:
+        assert db.execute(text("SELECT available_seats, status FROM ride")).one() == (1, "open")
+
+
+def test_a_request_for_the_last_free_seats_makes_the_ride_full(client, ride):
     assert book(client, {"id_ride": ride, "seats": 3}).status_code == 201
     with client.session() as db:
-        assert db.execute(text("SELECT available_seats, status FROM ride")).one() == (3, "open")
+        assert db.execute(text("SELECT available_seats, status FROM ride")).one() == (0, "full")
 
 
 def test_price_is_a_snapshot_at_booking_time(client, ride):

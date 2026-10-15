@@ -97,7 +97,8 @@ def approve_booking(
     """The ride's driver accepts a `requested` booking using Authorization: Bearer <accessToken>.
 
     The booking becomes `accepted` and its seats are taken from the ride's `available_seats`; the ride
-    becomes `full` when none are left.
+    becomes `full` when none are left. All remaining pending requests are rejected
+    with a reason and rider notifications in the same transaction.
     """
     try:
         booking = service.approve(current_user_id, id_booking)

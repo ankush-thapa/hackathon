@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useForegroundRefresh } from '../../services/useForegroundRefresh';
 import { Badge, Card, EmptyState, Screen, SecondaryButton, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
 import { CancelBooking } from '../../components/CancelBooking';
@@ -105,6 +106,32 @@ export default function MyRidesScreen() {
             if (id === reqId.current) setState(s => ({ ...s, loadingMore: false, error: onError(e) }));
         }
     };
+
+    const view = useRef({ kind, scope, state });
+    view.current = { kind, scope, state };
+    useForegroundRefresh(async () => {
+        const snapshot = view.current;
+        if (snapshot.state.loading || snapshot.state.loadingMore) return;
+        const id = reqId.current;
+        try {
+            const items: (MyRide | MyBooking)[] = [];
+            let cursor: string | null = null;
+            do {
+                const page: { items: (MyRide | MyBooking)[]; next_page: string | null } = snapshot.kind === 'offered' ? await fetchMyRides(snapshot.scope, cursor) : await fetchMyBookings(snapshot.scope, cursor);
+                items.push(...page.items);
+                cursor = page.next_page;
+            } while (cursor && items.length < snapshot.state.items.length);
+            const withRequests = snapshot.kind === 'offered' && snapshot.scope === 'upcoming'
+                ? items.filter((item): item is MyRide => 'id_ride' in item)
+                    .filter(ride => ride.requests.pending_requests > 0).map(ride => ride.id_ride)
+                : [];
+            const pending = withRequests.length ? await fetchRequestsFor(withRequests) : {};
+            if (id === reqId.current && !view.current.state.loadingMore && view.current.state.items === snapshot.state.items) {
+                setRequests(pending);
+                setState(previous => ({ ...previous, items, next: cursor, error: null }));
+            }
+        } catch (e) { if (id === reqId.current) setState(previous => ({ ...previous, error: onError(e) })); }
+    });
 
     const onBookingCancelled = (idBooking: string) => {
         // Cancelled bookings move to "Past", so drop it from the upcoming list.

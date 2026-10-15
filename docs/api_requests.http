@@ -195,3 +195,16 @@ GET {{base}}/health/ready
 # No schema migrations are needed for these changes. Existing notification migration must already be applied.
 # Retry keys are persisted as resource IDs using a secret-derived hash; keep JWT_SECRET stable across replicas.
 # Same key + changed payload is a conflict; same key + same payload returns current state, not original response.
+
+
+### Refresh availability for loaded search results. Missing IDs must be removed from the UI.
+POST {{base}}/v1/rides/availability
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"id_rides":["{{ride}}"],"seats":1}
+
+# Same driver's active rides require a minimum departure gap (MIN_RIDE_GAP_MINUTES, default 15).
+# Exactly 15 minutes is allowed. Cancelled/completed rides do not block another departure.
+# When approval fills the final seat, other pending requests are automatically rejected and notified.
+# Rejected requests are not revived if an accepted rider later cancels; they may submit a new request.

@@ -90,3 +90,16 @@ export type Booking = { id_booking: string; status: string; seats_booked: number
 /** POST /v1/ride/booking: request seats. Starts as `requested` until the driver approves. */
 export const bookRide = (idRide: string, seats: number, note?: string) =>
     postJson<Booking>('/v1/ride/booking', { id_ride: idRide, seats, rider_note: note?.trim() || null });
+
+
+/** Recheck every loaded ride, preserving pagination cursors. The server omits no-longer-bookable rides. */
+export async function refreshAvailability(previous: DaySearch, seats: number): Promise<DaySearch> {
+    const available = new Map<string, number>();
+    for (let i = 0; i < previous.rides.length; i += 100) {
+        const data = await postJson<{ items: { idRide: string; availableSeats: number }[] }>('/v1/rides/availability', {
+            id_rides: previous.rides.slice(i, i + 100).map(r => r.idRide), seats,
+        });
+        data.items.forEach(r => available.set(r.idRide, r.availableSeats));
+    }
+    return { ...previous, rides: previous.rides.filter(r => available.has(r.idRide)).map(r => ({ ...r, availableSeats: available.get(r.idRide)! })) };
+}

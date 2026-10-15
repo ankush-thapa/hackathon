@@ -50,6 +50,7 @@ def offer_ride(
     id_vehicle is required and must belong to the logged-in driver. The server
     sets id_driver, available_seats = total_seats, status = open, and version = 1.
     Send timezone-aware times; responses are UTC and large IDs are strings.
+    Active rides by the same driver require at least MIN_RIDE_GAP_MINUTES between departures (default 15).
     Optional Idempotency-Key (8-128 chars): reuse it with identical payload for a safe retry.
     Replays return the current resource state; changed payload/resource fields return 409.
     """
