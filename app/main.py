@@ -9,6 +9,7 @@ from app.api.hello import router as hello_router
 from app.api.media import MEDIA_URL_PATH
 from app.api.media import router as media_router
 from app.api.profile import router as profile_router
+from app.api.ride import router as ride_router
 from app.api.users import router as users_router
 from app.core.config import settings
 from app.db.fixtures import load_user_fixtures
@@ -40,6 +41,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(media_router)
+app.include_router(ride_router)
 
 settings.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
 app.mount(MEDIA_URL_PATH, StaticFiles(directory=settings.MEDIA_DIR), name="media")

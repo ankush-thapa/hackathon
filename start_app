@@ -32,4 +32,6 @@ venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
 api_pid=$!
 
 # Frontend runs in the foreground so Expo's keys work: w = web, i = iOS, a = Android.
-npm --prefix frontend start
+# npm --prefix frontend start
+# Frontend is disabled above, so keep the script (and the backend it owns) alive.
+wait "$api_pid"
