@@ -1,8 +1,9 @@
 import React, { useRef } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
+import { getSession } from '../services/session';
 
 const theme = Colors.light;
 const CREAM = '#F7EFEA';
@@ -33,8 +34,12 @@ export default function LandingScreen() {
 
     const scrollRef = useRef<ScrollView>(null);
     const sectionY = useRef<Record<string, number>>({});
+    // Hooks above must run unconditionally; signed-in users skip the landing page.
+    const signedIn = !!getSession();
     const scrollTo = (key: string) => scrollRef.current?.scrollTo({ y: sectionY.current[key] ?? 0, animated: true });
     const track = (key: string) => (e: { nativeEvent: { layout: { y: number } } }) => { sectionY.current[key] = e.nativeEvent.layout.y; };
+
+    if (signedIn) return <Redirect href="/dashboard" />;
 
     return (
         <ScrollView ref={scrollRef} style={{ backgroundColor: CREAM }} contentContainerStyle={{ paddingTop: insets.top }}>

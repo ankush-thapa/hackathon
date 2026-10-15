@@ -1,7 +1,8 @@
 import React from 'react';
-import { Stack, usePathname } from 'expo-router';
+import { Stack } from 'expo-router';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts, Fredoka_700Bold } from '@expo-google-fonts/fredoka';
 import { Colors } from '../constants/Colors';
 
 // Each route group renders its own header: (auth) and (tabs) use the brand Header,
@@ -10,8 +11,6 @@ export default function RootLayout() {
     // Rounded display font used for the Hopr wordmark (matches the logo).
     // Render immediately; the wordmark falls back to the system font until it loads.
     useFonts({ Fredoka_700Bold });
-    // The landing page (/) draws its own navigation bar.
-    const isLanding = usePathname() === '/';
 
     return (
         <SafeAreaProvider>
