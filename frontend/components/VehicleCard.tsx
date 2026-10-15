@@ -1,12 +1,18 @@
 import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Colors } from '../constants/Colors';
-import { Vehicle } from '../types/vehicle';
+import { Badge } from './ui';
+import { Vehicle, vehicleLabel } from '../services/vehicles';
 
 type Props = {
     vehicle: Vehicle;
     onDelete: (id: string) => void;
 };
+
+// Stored without spaces (MH12AB1234); show it grouped (MH 12 AB 1234) for readability.
+const formatRegistration = (reg: string) =>
+    reg.replace(/^([A-Z]{2})(\d{1,2})([A-Z]{0,4})(\d{4})$/, (_, a, b, c, d) => [a, b, c, d].filter(Boolean).join(' '))
+        .replace(/^(\d{2})(BH)(\d{4})([A-Z]{1,2})$/, '$1 $2 $3 $4');
 
 export const VehicleCard = ({ vehicle, onDelete }: Props) => {
     const theme = Colors.light;
@@ -15,12 +21,21 @@ export const VehicleCard = ({ vehicle, onDelete }: Props) => {
 
     return (
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Image source={{ uri: vehicle.photoUri }} style={styles.photo} accessibilityLabel={`Photo of ${vehicle.name}`} />
+            {vehicle.photoUrl ? (
+                <Image source={{ uri: vehicle.photoUrl }} style={styles.photo} accessibilityLabel={`Photo of ${vehicleLabel(vehicle)}`} />
+            ) : (
+                <View style={[styles.photo, { backgroundColor: theme.background }]} />
+            )}
 
             <View style={styles.info}>
-                <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>{vehicle.name}</Text>
-                <Text style={[styles.number, { color: theme.text }]}>{vehicle.number}</Text>
-                <Text style={[styles.colorText, { color: theme.muted }]} numberOfLines={1}>Colour: {vehicle.color}</Text>
+                <View style={styles.titleRow}>
+                    <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>{vehicleLabel(vehicle)}</Text>
+                    {vehicle.isDefault ? <Badge label="Default" tone="brand" /> : null}
+                </View>
+                <Text style={[styles.number, { color: theme.text }]}>{formatRegistration(vehicle.registrationNumber)}</Text>
+                <Text style={[styles.colorText, { color: theme.muted }]} numberOfLines={1}>
+                    {vehicle.colour} · {vehicle.seatCapacity} {vehicle.seatCapacity === 1 ? 'seat' : 'seats'}
+                </Text>
             </View>
 
             {confirming ? (
@@ -41,7 +56,7 @@ export const VehicleCard = ({ vehicle, onDelete }: Props) => {
             ) : (
                 <Pressable
                     onPress={() => setConfirming(true)}
-                    accessibilityLabel={`Delete ${vehicle.number}`}
+                    accessibilityLabel={`Remove ${vehicleLabel(vehicle)}`}
                     style={({ pressed }) => [styles.btn, { borderColor: theme.error }, pressed && styles.pressed]}
                 >
                     <Text style={[styles.btnText, { color: theme.error }]}>Remove</Text>
@@ -70,7 +85,13 @@ const styles = StyleSheet.create({
         flex: 1,
         gap: 3,
     },
+    titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     name: {
+        flexShrink: 1,
         fontSize: 17,
         fontWeight: '700',
     },

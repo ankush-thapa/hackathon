@@ -3,14 +3,12 @@ import { Stack } from 'expo-router';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
-import { VehiclesProvider } from '../context/VehiclesContext';
 
 // Each route group renders its own header: (auth) and (tabs) use the brand Header,
 // (app) uses AppHeader with the sidebar, notifications, profile and logout.
 export default function RootLayout() {
     return (
         <SafeAreaProvider>
-            <VehiclesProvider>
             <View style={{ flex: 1, backgroundColor: Colors.light.background }}>
                 <Stack
                     screenOptions={{
@@ -19,7 +17,6 @@ export default function RootLayout() {
                     }}
                 />
             </View>
-            </VehiclesProvider>
         </SafeAreaProvider>
     );
 }
