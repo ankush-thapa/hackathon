@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_id, require_session
@@ -14,7 +14,10 @@ from app.repositories.ride_repo import (
     VehicleInactiveError,
     VehicleNotFoundError,
 )
+from app.repositories.ride_detail_repo import RideDetailRepository
 from app.schemas.ride import OfferRideRequest, OfferRideResponse, RideListResponse
+from app.schemas.ride_detail import RideDetailResponse
+from app.services.ride_detail_service import RideDetailService, RideNotFoundError
 from app.services.ride_service import DepartureInPastError, InvalidCursorError, RideService
 
 router = APIRouter(prefix="/v1/rides", tags=["rides"])
@@ -111,3 +114,37 @@ def list_rides(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=f"{e.field}: station not found")
     except InvalidCursorError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid cursor")
+
+
+def get_ride_detail_service(db: Session = Depends(get_db)) -> RideDetailService:
+    return RideDetailService(RideDetailRepository(db))
+
+
+@router.get(
+    "/{id_ride}",
+    response_model=RideDetailResponse,
+    summary="Ride details",
+    responses={
+        401: {"description": "Missing, invalid, expired, or revoked access token"},
+        404: {"description": "Ride not found, or not visible to the caller"},
+        422: {"description": "Invalid id_ride"},
+    },
+)
+def get_ride(
+    id_ride: Annotated[int, Path(gt=0, le=2**64 - 1, description="The ride's id_ride; send large IDs as strings.")],
+    current_user_id: int = Depends(get_current_user_id),
+    service: RideDetailService = Depends(get_ride_detail_service),
+):
+    """Full details of one ride (Authorization: Bearer <accessToken>), tailored to who is asking.
+
+    - Everyone logged in can see `open` and `full` rides; other rides are visible only to their driver and to
+      riders who booked them (anyone else gets 404).
+    - `role` says how the caller relates to the ride: `driver`, `rider` or `viewer`.
+    - `my_booking` is the caller's active booking (else their latest); `null` if they never booked.
+    - For the driver only: `requests` (pending requests, accepted seats) and `bookings` (the active passengers and
+      requests, with each rider's name and photo). Riders never see each other.
+    """
+    try:
+        return service.get(id_ride, current_user_id)
+    except RideNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="ride not found") from None
