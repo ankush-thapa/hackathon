@@ -5,13 +5,10 @@ import { Badge, Card, EmptyState, Screen, SecondaryButton, TextLink } from '../.
 import { Colors } from '../../constants/Colors';
 import { RideRequestList } from '../../components/RideRequestRow';
 import { departureLabel } from '../../services/format';
-<<<<<<< HEAD
 import { notifyBookingCancelled } from '../../services/notifications';
 import { useProfile } from '../../services/profile';
 import { CURRENCY } from '../../constants/Currency';
-=======
 import { RideRequest, fetchPendingRequests } from '../../services/rideRequests';
->>>>>>> origin/main
 import {
     BookingStatus,
     MyBooking,

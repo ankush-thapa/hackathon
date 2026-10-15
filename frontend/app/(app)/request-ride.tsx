@@ -21,9 +21,6 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
-import { useProfile } from '../../services/profile';
-import { notifyDriverOfRequest } from '../../services/rideRequests';
-import { getSession } from '../../services/session';
 
 const theme = Colors.light;
 const DAYS = nextDays(7);
@@ -254,7 +251,6 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
     const total = Number(ride.pricePerSeat) * seats;
     const car = ride.vehicle ? `${ride.vehicle.color} ${ride.vehicle.make} ${ride.vehicle.model}` : null;
     const driver = ride.driver.fullName || 'Driver';
-    const profile = useProfile();
 
     const book = async () => {
         setBusy(true);
@@ -262,7 +258,6 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         try {
             const booking = await bookRide(ride.idRide, seats, note);
             setStep('done');
-<<<<<<< HEAD
             // Tell the driver (best effort; the booking already succeeded).
             notifyBookingRequested({
                 driverId: ride.driver.userId,
@@ -273,17 +268,6 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
                 from: ride.source.name,
                 to: ride.destination.name,
                 departure: ride.departureTime,
-=======
-            const s = getSession();
-            notifyDriverOfRequest({
-                idDriver: ride.driver.userId,
-                idRide: ride.idRide,
-                idBooking: booking.id_booking,
-                departureTime: ride.departureTime,
-                seats,
-                riderName: profile.fullName || s?.email?.split('@')[0] || 'A rider',
-                note,
->>>>>>> origin/main
             });
         } catch (e) {
             onAuthError(e);
