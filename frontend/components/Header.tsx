@@ -37,9 +37,9 @@ export const Header = () => {
                         source={require('../assets/app_icon.png')}
                         style={styles.logoImage}
                         resizeMode="contain"
-                        accessibilityLabel="Hackathon Logo"
+                        accessibilityLabel="Carpool logo"
                     />
-                    <Text style={[styles.logoBrandName, { color: theme.text }]}>Hackathon</Text>
+                    <Text style={[styles.logoBrandName, { color: theme.text }]}>Carpool</Text>
                 </Pressable>
             </View>
         </View>

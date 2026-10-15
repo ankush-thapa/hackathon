@@ -158,7 +158,7 @@ node_modules/
 .expo/
 dist/
 web-build/
-media/
+# media/ is tracked on purpose (uploaded profile photos are committed)
 /brain/
 backups/
 *.sql

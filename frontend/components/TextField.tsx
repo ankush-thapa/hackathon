@@ -5,11 +5,13 @@ import { Colors } from '../constants/Colors';
 type Props = TextInputProps & {
     label: string;
     error?: string;
+    /** Helper text shown under the field when there is no error. */
+    hint?: string;
     /** Adds a Show/Hide toggle and masks the value. */
     password?: boolean;
 };
 
-export const TextField = forwardRef<TextInput, Props>(({ label, error, password, style, onFocus, onBlur, ...rest }, ref) => {
+export const TextField = forwardRef<TextInput, Props>(({ label, error, hint, password, style, onFocus, onBlur, ...rest }, ref) => {
     const theme = Colors.light;
     const [focused, setFocused] = useState(false);
     const [hidden, setHidden] = useState(true);
@@ -42,7 +44,11 @@ export const TextField = forwardRef<TextInput, Props>(({ label, error, password,
                     </Pressable>
                 )}
             </View>
-            {error ? <Text style={[styles.error, { color: theme.error }]}>{error}</Text> : null}
+            {error ? (
+                <Text style={[styles.error, { color: theme.error }]}>{error}</Text>
+            ) : hint ? (
+                <Text style={[styles.error, { color: theme.muted }]}>{hint}</Text>
+            ) : null}
         </View>
     );
 });
