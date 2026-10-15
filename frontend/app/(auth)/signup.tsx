@@ -48,7 +48,7 @@ export default function SignupScreen() {
         try {
             await signup({ email: form.email, phone: form.phone, password: form.password });
             // TODO: persist the token, and add OTP/email verification here if the backend requires it.
-            router.replace('/home');
+            router.replace('/profile-setup');
         } catch (err) {
             setFormError(err instanceof AuthError ? err.message : 'Something went wrong. Please try again.');
         } finally {

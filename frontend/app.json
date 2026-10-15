@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Carpool",
-    "slug": "carpool",
-    "scheme": "carpool",
+    "name": "Hopr",
+    "slug": "hopr",
+    "scheme": "hopr",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,7 +11,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FBF7F5"
+      "backgroundColor": "#8E4537"
     },
     "ios": {
       "supportsTablet": true
