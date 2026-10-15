@@ -2,12 +2,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RideRequestList } from '../../../components/RideRequestRow';
+import { TextField } from '../../../components/TextField';
 import { PrimaryButton } from '../../../components/PrimaryButton';
 import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTitle, Stepper, TextLink } from '../../../components/ui';
 import { Colors } from '../../../constants/Colors';
 import { CURRENCY } from '../../../constants/Currency';
 import { dayLabel, istDay, timeLabel } from '../../../services/format';
-import { MyRide, MyRidesError, RideStatus, cachedMyRide, findMyRide, money, updateRideSeats, vehicleText } from '../../../services/myRides';
+import { MyRide, MyRidesError, RideStatus, cachedMyRide, cancelOfferedRide, findMyRide, money, updateRideSeats, vehicleText } from '../../../services/myRides';
 import { RideRequest, fetchRideRequests } from '../../../services/rideRequests';
 
 const theme = Colors.light;
@@ -19,6 +20,9 @@ const STATUS: Record<RideStatus, { label: string; tone: 'neutral' | 'brand' | 's
     completed: { label: 'Completed', tone: 'muted' },
     cancelled: { label: 'Cancelled', tone: 'muted' },
 };
+
+/** Drivers may cancel only until this long before departure. */
+const CANCEL_CUTOFF_MS = 60 * 60_000;
 
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
@@ -177,7 +181,94 @@ export default function RideDetailScreen() {
 
             <SecondaryButton title="Refresh" onPress={load} />
             {error ? <Text style={[styles.error, { textAlign: 'center' }]}>{error}</Text> : null}
+
+            {actionable && depart.getTime() - Date.now() > CANCEL_CUTOFF_MS ? (
+                <CancelRide ride={ride} onCancelled={load} onAuthError={onAuthError} />
+            ) : actionable && depart.getTime() > Date.now() ? (
+                <Text style={[styles.meta, { textAlign: 'center' }]}>
+                    Rides can only be cancelled up to 1 hour before departure.
+                </Text>
+            ) : ride.status === 'cancelled' ? (
+                <Text style={[styles.meta, { textAlign: 'center' }]}>This ride was cancelled. Riders were notified.</Text>
+            ) : null}
         </Screen>
+    );
+}
+
+/** Cancel the whole ride: every pending and confirmed booking is cancelled and those riders are notified. */
+function CancelRide({ ride, onCancelled, onAuthError }: {
+    ride: MyRide; onCancelled: () => Promise<void> | void; onAuthError: (e: unknown) => string;
+}) {
+    const [open, setOpen] = useState(false);
+    const [reason, setReason] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const { accepted_seats: confirmed, pending_requests: pending } = ride.requests;
+
+    const affected = [
+        confirmed ? `${plural(confirmed, 'confirmed seat')}` : null,
+        pending ? `${plural(pending, 'pending request')}` : null,
+    ].filter(Boolean).join(' and ');
+
+    const confirm = async () => {
+        if (new Date(ride.departure_time).getTime() - Date.now() <= CANCEL_CUTOFF_MS) {
+            return setError('It’s now less than 1 hour before departure, so this ride can’t be cancelled.');
+        }
+        setBusy(true);
+        setError(null);
+        try {
+            await cancelOfferedRide(ride.id_ride, reason.trim() || undefined);
+            await onCancelled();
+        } catch (e) {
+            const msg = onAuthError(e);
+            setError(/cannot cancel from/i.test(msg) ? 'This ride has already started or finished, so it can’t be cancelled.' : msg);
+            setBusy(false);
+        }
+    };
+
+    if (!open) {
+        return (
+            <Pressable onPress={() => setOpen(true)} accessibilityRole="button" style={({ pressed }) => [styles.cancelRideBtn, pressed && { opacity: 0.8 }]}>
+                <Text style={styles.cancelRideText}>Cancel ride</Text>
+            </Pressable>
+        );
+    }
+    return (
+        <Card style={styles.cancelBox}>
+            <Text style={styles.cancelTitle}>Cancel this ride?</Text>
+            <Text style={styles.meta}>
+                {affected
+                    ? `${affected} will be cancelled, and those riders will be notified.`
+                    : 'Nobody has booked yet, so no riders are affected.'}{' '}
+                This can’t be undone.
+            </Text>
+            {affected ? (
+                <TextField
+                    label="Reason for riders (optional)"
+                    value={reason}
+                    onChangeText={setReason}
+                    placeholder="e.g. Car is in for repairs"
+                    autoCapitalize="sentences"
+                    autoCorrect
+                    maxLength={255}
+                />
+            ) : null}
+            <FormError message={error} />
+            <View style={styles.cancelActions}>
+                {busy ? (
+                    <ActivityIndicator color={theme.error} />
+                ) : (
+                    <>
+                        <Pressable onPress={() => { setOpen(false); setError(null); }} accessibilityRole="button" hitSlop={8}>
+                            <Text style={styles.keepText}>Keep ride</Text>
+                        </Pressable>
+                        <Pressable onPress={confirm} accessibilityRole="button" style={({ pressed }) => [styles.confirmCancelBtn, pressed && { opacity: 0.85 }]}>
+                            <Text style={styles.confirmCancelText}>Yes, cancel ride</Text>
+                        </Pressable>
+                    </>
+                )}
+            </View>
+        </Card>
     );
 }
 
@@ -282,6 +373,14 @@ const styles = StyleSheet.create({
     statRow: { flexDirection: 'row', gap: 12 },
     statValue: { fontSize: 20, fontWeight: '800', color: theme.text },
     seatBar: { flexDirection: 'row', gap: 6 },
+    cancelRideBtn: { alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 999, borderWidth: 1.5, borderColor: theme.error, marginTop: 8 },
+    cancelRideText: { color: theme.error, fontSize: 15, fontWeight: '700' },
+    cancelBox: { gap: 12, borderColor: theme.error },
+    cancelTitle: { fontSize: 17, fontWeight: '800', color: theme.text },
+    cancelActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 20 },
+    keepText: { fontSize: 15, fontWeight: '700', color: theme.muted },
+    confirmCancelBtn: { backgroundColor: theme.error, paddingVertical: 10, paddingHorizontal: 18, borderRadius: 999 },
+    confirmCancelText: { color: '#FFFFFF', fontSize: 15, fontWeight: '800' },
     editRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
     editLink: { fontSize: 14, fontWeight: '700', color: theme.primary },
     savedText: { fontSize: 14, fontWeight: '700', color: theme.success },
