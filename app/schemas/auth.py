@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 _EMAIL_RE = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
@@ -56,3 +58,13 @@ class LoginResponse(BaseModel):
     tokenType: str = "Bearer"
     expiresIn: int  # seconds
     userId: str
+    sessionId: str
+
+
+class SessionInfo(BaseModel):
+    sessionId: str
+    current: bool  # the session that made this request
+    userAgent: str | None
+    ipAddress: str | None
+    createdAt: datetime  # UTC
+    expiresAt: datetime  # UTC
