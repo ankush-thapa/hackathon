@@ -20,6 +20,7 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
+
 import { notifyDriverOfRequest } from '../../services/rideRequests';
 import { getSession } from '../../services/session';
 

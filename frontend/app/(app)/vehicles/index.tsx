@@ -1,15 +1,16 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors } from '../../../constants/Colors';
 import { PrimaryButton } from '../../../components/PrimaryButton';
 import { VehicleCard } from '../../../components/VehicleCard';
 import { EmptyState, Screen, SecondaryButton } from '../../../components/ui';
-import { removeVehicle, useVehicles } from '../../../services/vehicles';
+import { useMyVehicles } from '../../../services/useMyVehicles';
+import { removeVehicle } from '../../../services/vehicles';
 
 export default function MyVehiclesScreen() {
     const router = useRouter();
-    const vehicles = useVehicles();
+    const { vehicles, loading, error, reload } = useMyVehicles(() => router.replace('/login'));
     // Set by the Add Vehicle page after a successful add, e.g. /vehicles?added=Maruti%20Suzuki%20Swift
     const { added } = useLocalSearchParams<{ added?: string }>();
     const theme = Colors.light;
@@ -30,7 +31,11 @@ export default function MyVehiclesScreen() {
                     <Text style={[styles.successText, { color: theme.success }]}>{added} added successfully.</Text>
                 </View>
             ) : null}
-            {vehicles.length === 0 ? (
+            {loading && vehicles.length === 0 ? (
+                <ActivityIndicator color={theme.primary} style={{ marginVertical: 24 }} />
+            ) : error && vehicles.length === 0 ? (
+                <EmptyState title="Couldn't load your vehicles" body={error} action={<SecondaryButton title="Try again" onPress={reload} />} />
+            ) : vehicles.length === 0 ? (
                 <EmptyState
                     title="No vehicles yet"
                     body="Add a vehicle to start offering rides."

@@ -4,12 +4,12 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RideRequestList } from '../../../components/RideRequestRow';
 import { Badge, Card, EmptyState, Screen, SecondaryButton, SectionTitle, TextLink } from '../../../components/ui';
 import { Colors } from '../../../constants/Colors';
+import { CURRENCY } from '../../../constants/Currency';
 import { dayLabel, timeLabel } from '../../../services/format';
 import { MyRide, MyRidesError, RideStatus, cachedMyRide, findMyRide, money, vehicleText } from '../../../services/myRides';
 import { RideRequest, fetchPendingRequests } from '../../../services/rideRequests';
 
 const theme = Colors.light;
-const CURRENCY = 'AED';
 
 const STATUS: Record<RideStatus, { label: string; tone: 'neutral' | 'brand' | 'success' | 'muted' }> = {
     open: { label: 'Open for riders', tone: 'success' },
@@ -138,11 +138,11 @@ export default function RideDetailScreen() {
                 <View style={styles.statRow}>
                     <Stat label="Booked" value={`${booked}/${ride.total_seats}`} />
                     <Stat label="Free" value={String(ride.available_seats)} />
-                    <Stat label="Per seat" value={`${CURRENCY} ${money(ride.price_per_seat)}`} />
+                    <Stat label="Per seat" value={`${CURRENCY}${money(ride.price_per_seat)}`} />
                 </View>
                 <SeatBar booked={booked} total={ride.total_seats} />
                 <Text style={styles.meta}>
-                    {booked ? `${CURRENCY} ${money(earnings)} from ${plural(booked, 'confirmed seat')}` : 'No seats confirmed yet'}
+                    {booked ? `${CURRENCY}${money(earnings)} from ${plural(booked, 'confirmed seat')}` : 'No seats confirmed yet'}
                 </Text>
             </Card>
 
