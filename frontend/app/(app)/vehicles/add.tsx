@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Link, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { Colors } from '../../../constants/Colors';
 import { PrimaryButton } from '../../../components/PrimaryButton';
 import { TextField } from '../../../components/TextField';
@@ -41,10 +41,8 @@ export default function AddVehicleScreen() {
     const [errors, setErrors] = useState<Errors>({});
     const [formError, setFormError] = useState<string | null>(null);
     const [saving, setSaving] = useState(false);
-    const [justAdded, setJustAdded] = useState<string | null>(null);
 
     const clearError = (field: VehicleField) => {
-        setJustAdded(null);
         setErrors(prev => ({ ...prev, [field]: undefined }));
     };
 
@@ -83,7 +81,6 @@ export default function AddVehicleScreen() {
 
     const onSubmit = async () => {
         setFormError(null);
-        setJustAdded(null);
         const next = validate();
         setErrors(next);
         if (Object.keys(next).length > 0 || !photo) return;
@@ -91,13 +88,8 @@ export default function AddVehicleScreen() {
         setSaving(true);
         try {
             const vehicle = await addVehicle({ photo, make, model, registrationNumber: registration, colour, seatCapacity: seats });
-            setJustAdded(vehicleLabel(vehicle));
-            setPhoto(null);
-            setMake('');
-            setModel('');
-            setRegistration('');
-            setColour('');
-            setSeats(DEFAULT_SEATS);
+            // Go to the list and show a confirmation there. replace() so Back doesn't reopen the submitted form.
+            router.replace({ pathname: '/vehicles', params: { added: vehicleLabel(vehicle) } });
         } catch (e) {
             if (e instanceof VehicleError) {
                 if (e.sessionExpired) {
@@ -115,16 +107,7 @@ export default function AddVehicleScreen() {
     };
 
     return (
-        <Screen title="Add a vehicle" subtitle="Add each vehicle you'll offer rides in. You can add as many as you like.">
-            {justAdded && (
-                <View style={[styles.success, { backgroundColor: theme.successBg }]}>
-                    <Text style={[styles.successText, { color: theme.success }]}>
-                        {justAdded} added. Add another, or{' '}
-                        <Link href="/vehicles" style={[styles.link, { color: theme.primary }]}>view my vehicles</Link>.
-                    </Text>
-                </View>
-            )}
-
+        <Screen title="Add a vehicle" subtitle="Add a vehicle you'll offer rides in.">
             <Card style={styles.form}>
                 <View style={styles.group}>
                     <Text style={[styles.label, { color: theme.text }]}>Photo</Text>
@@ -241,7 +224,5 @@ const styles = StyleSheet.create({
     link: { fontSize: 14, fontWeight: '700' },
     plate: { letterSpacing: 1, fontWeight: '600' },
     error: { fontSize: 13 },
-    success: { borderRadius: 12, padding: 14 },
-    successText: { fontSize: 15, fontWeight: '600' },
     pressed: { opacity: 0.75 },
 });
