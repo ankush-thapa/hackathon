@@ -14,13 +14,17 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column(
-        "user",
-        sa.Column(
-            "is_profile_completed", mysql.TINYINT(display_width=1),
-            nullable=False, server_default=sa.text("0"),
-        ),
-    )
+    # Skip the ADD if the column is already there: a local DB may have it from this migration's
+    # earlier draft (numbered 0005 before upstream's 0005/0006 landed).
+    columns = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("user")}
+    if "is_profile_completed" not in columns:
+        op.add_column(
+            "user",
+            sa.Column(
+                "is_profile_completed", mysql.TINYINT(display_width=1),
+                nullable=False, server_default=sa.text("0"),
+            ),
+        )
     # Existing users who already saved a profile count as completed.
     op.execute(
         "UPDATE `user` u JOIN user_profile p ON p.id_user = u.id_user SET u.is_profile_completed = 1"

@@ -71,7 +71,6 @@ type LoginResponse = {
     tokenType?: string;
     expiresIn: number;
     userId: string;
-    isProfileCompleted?: boolean;
 };
 
 /** Logs in with an email or phone number and stores the session on success. */
@@ -91,7 +90,6 @@ export async function login(identifier: string, password: string): Promise<Sessi
         tokenType: data.tokenType ?? 'Bearer',
         userId: data.userId,
         expiresAt: Date.now() + data.expiresIn * 1000,
-        isProfileCompleted: data.isProfileCompleted ?? true, // older backends don't send it: don't block them
         ...('email' in body ? { email: body.email } : { phone: body.phone }),
     };
     setSession(session);

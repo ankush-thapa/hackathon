@@ -53,7 +53,6 @@ class LoginResult:
     expires_in: int  # seconds
     refresh_token: str
     session_expires_at: datetime  # naive UTC
-    is_profile_completed: bool  # false → client routes the user to profile setup
 
 
 @dataclass(frozen=True)
@@ -118,9 +117,7 @@ class AuthService:
             refresh_token_hash=refresh_hash,
         )
         self._users.touch_last_active(creds.id_user, now)
-        return self._issue(
-            creds.id_user, id_session, session_expires_at, refresh_token, now, creds.is_profile_completed
-        )
+        return self._issue(creds.id_user, id_session, session_expires_at, refresh_token, now)
 
     def refresh(self, refresh_token: str) -> LoginResult:
         """Trade a refresh token for new tokens. Each refresh token works once."""
@@ -141,19 +138,10 @@ class AuthService:
             # An already-used refresh token came back: assume it leaked and end the session.
             self._sessions.revoke(id_session, state.id_user, now)
             raise InvalidSessionError(SessionReason.session_revoked)
-        return self._issue(
-            state.id_user, id_session, state.expires_at, new_token, now,
-            self._users.is_profile_completed(state.id_user),
-        )
+        return self._issue(state.id_user, id_session, state.expires_at, new_token, now)
 
     def _issue(
-        self,
-        id_user: int,
-        id_session: int,
-        session_expires_at: datetime,
-        refresh_token: str,
-        now: datetime,
-        is_profile_completed: bool,
+        self, id_user: int, id_session: int, session_expires_at: datetime, refresh_token: str, now: datetime
     ) -> LoginResult:
         # An access token never outlives its session.
         token_expires_at = min(now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES), session_expires_at)
@@ -162,9 +150,7 @@ class AuthService:
             issued_at=now.replace(tzinfo=timezone.utc), expires_at=token_expires_at.replace(tzinfo=timezone.utc),
         )
         expires_in = int((token_expires_at - now).total_seconds())
-        return LoginResult(
-            id_user, id_session, access_token, expires_in, refresh_token, session_expires_at, is_profile_completed
-        )
+        return LoginResult(id_user, id_session, access_token, expires_in, refresh_token, session_expires_at)
 
     def authenticate(self, token: str) -> CurrentSession:
         """Resolve a bearer token to its live session, or raise InvalidSessionError with the reason."""

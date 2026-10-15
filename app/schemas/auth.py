@@ -61,7 +61,6 @@ class LoginResponse(BaseModel):
     sessionExpiresAt: datetime  # UTC; after this, log in again
     userId: str
     sessionId: str
-    isProfileCompleted: bool  # false → the client should send the user to profile setup
 
 
 class MeResponse(BaseModel):

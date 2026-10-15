@@ -17,7 +17,6 @@ class UserCredentials:
     id_user: int
     password_hash: str
     status: str
-    is_profile_completed: bool
 
 
 @dataclass(frozen=True)
@@ -31,13 +30,8 @@ _INSERT_USER = text(
     "INSERT INTO `user` (id_user, email, phone_number, password_hash) "
     "VALUES (:id_user, :email, :phone_number, :password_hash)"
 )
-_CREDENTIALS_BY_EMAIL = text(
-    "SELECT id_user, password_hash, status, is_profile_completed FROM `user` WHERE email = :v"
-)
-_CREDENTIALS_BY_PHONE = text(
-    "SELECT id_user, password_hash, status, is_profile_completed FROM `user` WHERE phone_number = :v"
-)
-_PROFILE_COMPLETED = text("SELECT is_profile_completed FROM `user` WHERE id_user = :id_user")
+_CREDENTIALS_BY_EMAIL = text("SELECT id_user, password_hash, status FROM `user` WHERE email = :v")
+_CREDENTIALS_BY_PHONE = text("SELECT id_user, password_hash, status FROM `user` WHERE phone_number = :v")
 _TOUCH_LAST_ACTIVE = text("UPDATE `user` SET last_active = :now WHERE id_user = :id_user")
 _EXISTS_BY_EMAIL = text("SELECT 1 FROM `user` WHERE email = :v LIMIT 1")
 _EXISTS_BY_PHONE = text("SELECT 1 FROM `user` WHERE phone_number = :v LIMIT 1")
@@ -64,12 +58,7 @@ class UserRepository:
     def get_credentials(self, *, email: str | None = None, phone_number: str | None = None) -> UserCredentials | None:
         query, value = (_CREDENTIALS_BY_EMAIL, email) if email is not None else (_CREDENTIALS_BY_PHONE, phone_number)
         row = self._db.execute(query, {"v": value}).first()
-        if not row:
-            return None
-        return UserCredentials(row.id_user, row.password_hash, row.status, bool(row.is_profile_completed))
-
-    def is_profile_completed(self, id_user: int) -> bool:
-        return bool(self._db.execute(_PROFILE_COMPLETED, {"id_user": id_user}).scalar())
+        return UserCredentials(row.id_user, row.password_hash, row.status) if row else None
 
     def touch_last_active(self, id_user: int, now: datetime) -> None:
         self._db.execute(_TOUCH_LAST_ACTIVE, {"id_user": id_user, "now": now})

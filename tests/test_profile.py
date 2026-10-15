@@ -92,19 +92,3 @@ def test_validation_422(client, user_id, patch):
     assert client.post(URL, json=payload(user_id, **patch)).status_code == 422
 
 
-def _login_flag(client):
-    r = client.post("/v1/auth/login", json={"email": "jane@example.com", "password": "Secret123"})
-    assert r.status_code == 200
-    return r.json()["isProfileCompleted"]
-
-
-def test_saving_profile_marks_user_profile_completed(client, user_id):
-    assert _login_flag(client) is False
-    assert client.post(URL, json=payload(user_id)).status_code == 201
-    assert _login_flag(client) is True
-    # Replacing the profile keeps the flag set.
-    assert client.post(URL, json=payload(user_id, about="Updated")).status_code == 200
-    assert _login_flag(client) is True
-    with client.session() as db:
-        flag = db.execute(text("SELECT is_profile_completed FROM `user` WHERE id_user = :i"), {"i": user_id})
-        assert flag.scalar() == 1

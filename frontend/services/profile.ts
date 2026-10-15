@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { Profile, ProfileInput } from '../data/profile';
 import { ApiError, postJson, request } from './api';
-import { getSession, updateSession } from './session';
+import { getSession } from './session';
 import { createStore, useStore } from './store/createStore';
 
 export { ApiError as ProfileError };
@@ -27,7 +27,6 @@ export async function saveProfile(input: ProfileInput): Promise<Profile> {
     const saved = await postJson<Profile>('/v1/auth/profile', { userId, ...input });
     const { userId: _id, ...rest } = saved;
     store.set(rest);
-    updateSession({ isProfileCompleted: true });
     return saved;
 }
 

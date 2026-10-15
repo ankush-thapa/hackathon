@@ -6,7 +6,6 @@ import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
 import { Colors } from '../../constants/Colors';
 import { AuthError, login } from '../../services/auth';
-import { homeRoute } from '../../services/session';
 import { validateIdentifier } from '../../services/validation';
 
 type Errors = { identifier?: string; password?: string };
@@ -41,9 +40,8 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
-            const session = await login(identifier, password);
-            // New users (no saved profile yet) go to profile setup first.
-            router.replace(homeRoute(session));
+            await login(identifier, password);
+            router.replace('/dashboard');
         } catch (err) {
             setFormError(err instanceof AuthError ? err.message : 'Something went wrong. Please try again.');
         } finally {

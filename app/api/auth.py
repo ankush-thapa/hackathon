@@ -39,7 +39,6 @@ def _token_response(result: LoginResult) -> LoginResponse:
         sessionExpiresAt=_utc(result.session_expires_at),
         userId=str(result.id_user),
         sessionId=str(result.id_session),
-        isProfileCompleted=result.is_profile_completed,
     )
 
 

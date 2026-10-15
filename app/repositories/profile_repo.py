@@ -13,7 +13,6 @@ _INSERT_PROFILE = text(
     "INSERT INTO user_profile (id_user, full_name, photo_url, about, date_of_birth, gender) "
     "VALUES (:id_user, :full_name, :photo_url, :about, :date_of_birth, :gender)"
 )
-_MARK_COMPLETED = text("UPDATE `user` SET is_profile_completed = 1 WHERE id_user = :id_user")
 _UPDATE_PROFILE = text(
     "UPDATE user_profile SET full_name = :full_name, photo_url = :photo_url, about = :about, "
     "date_of_birth = :date_of_birth, gender = :gender WHERE id_user = :id_user"
@@ -35,7 +34,6 @@ class ProfileRepository:
             return False
         try:
             self._db.execute(_INSERT_PROFILE, params)
-            self._db.execute(_MARK_COMPLETED, {"id_user": params["id_user"]})
             self._db.commit()
             return True
         except IntegrityError:  # lost a race with a concurrent insert (PK on id_user): update instead
@@ -47,5 +45,4 @@ class ProfileRepository:
 
     def _update(self, params: dict) -> None:
         self._db.execute(_UPDATE_PROFILE, params)
-        self._db.execute(_MARK_COMPLETED, {"id_user": params["id_user"]})
         self._db.commit()
