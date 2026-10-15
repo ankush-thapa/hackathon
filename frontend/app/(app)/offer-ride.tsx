@@ -10,7 +10,7 @@ import { Colors } from '../../constants/Colors';
 import { CURRENCY, formatPrice } from '../../constants/Currency';
 import { ApiError } from '../../services/api';
 import { CAR_POLICIES, CarPolicyId, DEFAULT_POLICIES, buildNotes } from '../../services/carPolicy';
-import { departureLabel } from '../../services/format';
+import { departureLabel, today } from '../../services/format';
 import { OfferError, OfferField, Ride, offerRide } from '../../services/rides';
 import { clearSession } from '../../services/session';
 import { Station } from '../../services/stations';
@@ -37,7 +37,7 @@ export default function OfferRideScreen() {
     const [vehicleId, setVehicleId] = useState<string | null>(null);
     const [source, setSource] = useState<Station | null>(null);
     const [destination, setDestination] = useState<Station | null>(null);
-    const [dayIndex, setDayIndex] = useState(0);
+    const [day, setDay] = useState<Date>(() => today());
     const [time, setTime] = useState('');
     const [seats, setSeats] = useState(1);
     const [price, setPrice] = useState('');
@@ -86,7 +86,7 @@ export default function OfferRideScreen() {
             destination: !destination
                 ? 'Choose a drop-off station'
                 : source && destination.id === source.id ? 'Drop-off must be different from pickup' : undefined,
-            departure: validateDeparture(dayIndex, time).error,
+            departure: validateDeparture(day, time).error,
             price: validatePrice(price),
         }
         : {};
@@ -97,7 +97,7 @@ export default function OfferRideScreen() {
         setSubmitted(true);
         setFormError(null);
         setServerErrors({});
-        const d = validateDeparture(dayIndex, time);
+        const d = validateDeparture(day, time);
         const missing = [
             !source && 'source',
             (!destination || (source && destination.id === source.id)) && 'destination',
@@ -179,8 +179,8 @@ export default function OfferRideScreen() {
             />
 
             <DeparturePicker
-                dayIndex={dayIndex}
-                onDayChange={i => { setDayIndex(i); clear('departure'); }}
+                day={day}
+                onDayChange={d => { setDay(d); clear('departure'); }}
                 time={time}
                 onTimeChange={t => { setTime(t); clear('departure'); }}
                 timeError={err('departure')}

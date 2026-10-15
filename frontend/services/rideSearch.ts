@@ -1,3 +1,4 @@
+import { dayStart } from './format';
 import { ApiError, postJson, request } from './api';
 
 // Request-a-ride flow: GET /v1/stations → GET /v1/rides (search) → POST /v1/ride/booking.
@@ -31,11 +32,11 @@ export async function fetchStations(): Promise<Station[]> {
 
 export type SearchParams = { from: number; to: number; seats: number };
 
-const searchPage = (p: SearchParams, utcDate: string, cursor?: string | null) => {
+const searchPage = (p: SearchParams, date: string, cursor?: string | null) => {
     const q = new URLSearchParams({
         idSourceStation: String(p.from),
         idDestinationStation: String(p.to),
-        departureDate: utcDate,
+        departureDate: date,
         seats: String(p.seats),
         pageSize: '50',
     });
@@ -43,18 +44,23 @@ const searchPage = (p: SearchParams, utcDate: string, cursor?: string | null) =>
     return request<SearchPage>(`/v1/rides?${q}`);
 };
 
-const utcDay = (d: Date) => d.toISOString().slice(0, 10);
+/** The picked calendar day as YYYY-MM-DD (never toISOString, which would shift it to UTC). */
+const localDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /**
- * The API filters by UTC calendar day, but users pick a local day. A local day can span two UTC
- * days (e.g. IST), so we query each of them, keep rides that depart on the chosen local day,
- * and expose one cursor per UTC day for "load more".
+ * Sends exactly the date the user picked as `departureDate`.
+ * The API reads that date as a UTC day, so it covers 05:30 IST that day to 05:29 IST the next.
+ * Rides from the next morning are filtered out here so the list only shows the picked day;
+ * rides before 05:30 on the picked day aren't returned by the API at all.
+ * TODO(backend): accept a timezone (or from/to times) so the search can match the local day exactly.
  */
-export type DaySearch = { rides: SearchRide[]; cursors: Record<string, string | null> };
+export type DaySearch = { rides: SearchRide[]; date: string; cursor: string | null };
 
+/** True if the ride departs on the picked day, in IST. */
 const inLocalDay = (iso: string, day: Date) => {
     const t = new Date(iso).getTime();
-    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime();
+    const start = dayStart(day).getTime();
     return t >= start && t < start + 86_400_000;
 };
 
@@ -65,26 +71,19 @@ const merge = (a: SearchRide[], b: SearchRide[]) => {
 };
 
 export async function searchRides(p: SearchParams, day: Date): Promise<DaySearch> {
-    const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-    const end = new Date(start.getTime() + 86_400_000 - 1);
-    const utcDays = [...new Set([utcDay(start), utcDay(end)])];
-    const pages = await Promise.all(utcDays.map(d => searchPage(p, d)));
-    const cursors: Record<string, string | null> = {};
-    utcDays.forEach((d, i) => { cursors[d] = pages[i].next_page; });
-    const rides = merge([], pages.flatMap(pg => pg.items)).filter(r => inLocalDay(r.departureTime, day));
-    return { rides, cursors };
+    const date = localDate(day);
+    const page = await searchPage(p, date);
+    return { rides: merge([], page.items).filter(r => inLocalDay(r.departureTime, day)), date, cursor: page.next_page };
 }
 
 export async function searchMore(p: SearchParams, day: Date, prev: DaySearch): Promise<DaySearch> {
-    const pending = Object.entries(prev.cursors).filter(([, c]) => c);
-    const pages = await Promise.all(pending.map(([d, c]) => searchPage(p, d, c)));
-    const cursors = { ...prev.cursors };
-    pending.forEach(([d], i) => { cursors[d] = pages[i].next_page; });
-    const fresh = pages.flatMap(pg => pg.items).filter(r => inLocalDay(r.departureTime, day));
-    return { rides: merge(prev.rides, fresh), cursors };
+    if (!prev.cursor) return prev;
+    const page = await searchPage(p, prev.date, prev.cursor);
+    const fresh = page.items.filter(r => inLocalDay(r.departureTime, day));
+    return { rides: merge(prev.rides, fresh), date: prev.date, cursor: page.next_page };
 }
 
-export const hasMore = (s: DaySearch) => Object.values(s.cursors).some(Boolean);
+export const hasMore = (s: DaySearch) => !!s.cursor;
 
 export type Booking = { id_booking: string; status: string; seats_booked: number; total_amount: string | number };
 

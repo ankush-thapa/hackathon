@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { RideRequestList } from '../../../components/RideRequestRow';
-import { Badge, Card, EmptyState, Screen, SecondaryButton, SectionTitle, TextLink } from '../../../components/ui';
+import { PrimaryButton } from '../../../components/PrimaryButton';
+import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTitle, Stepper, TextLink } from '../../../components/ui';
 import { Colors } from '../../../constants/Colors';
 import { CURRENCY } from '../../../constants/Currency';
-import { dayLabel, timeLabel } from '../../../services/format';
-import { MyRide, MyRidesError, RideStatus, cachedMyRide, findMyRide, money, vehicleText } from '../../../services/myRides';
-import { RideRequest, fetchPendingRequests } from '../../../services/rideRequests';
+import { dayLabel, istDay, timeLabel } from '../../../services/format';
+import { MyRide, MyRidesError, RideStatus, cachedMyRide, findMyRide, money, updateRideSeats, vehicleText } from '../../../services/myRides';
+import { RideRequest, fetchRideRequests } from '../../../services/rideRequests';
 import { useForegroundRefresh } from '../../../services/useForegroundRefresh';
 
 const theme = Colors.light;
@@ -48,10 +49,10 @@ export default function RideDetailScreen() {
         if (!id) return;
         setError(null);
         try {
-            const [fresh, pending] = await Promise.all([findMyRide(id), fetchPendingRequests(id)]);
+            const [fresh, pending] = await Promise.all([findMyRide(id), fetchRideRequests(id).catch(() => [] as RideRequest[])]);
             setRide(fresh);
             setNotFound(!fresh);
-            setRequests((pending as Record<string, RideRequest[]>)[id] ?? []);
+            setRequests(pending);
         } catch (e) {
             setError(onAuthError(e));
         } finally {
@@ -104,7 +105,7 @@ export default function RideDetailScreen() {
     return (
         <Screen
             title={`${ride.source.name} → ${ride.destination.name}`}
-            subtitle={`${dayLabel(depart)} · ${timeLabel(depart)}`}
+            subtitle={`${dayLabel(istDay(depart))} · ${timeLabel(depart)}`}
             action={<TextLink label="Back" onPress={back} />}
         >
             <View style={styles.badges}>
@@ -146,6 +147,9 @@ export default function RideDetailScreen() {
                 <Text style={styles.meta}>
                     {booked ? `${CURRENCY}${money(earnings)} from ${plural(booked, 'confirmed seat')}` : 'No seats confirmed yet'}
                 </Text>
+                {actionable && depart.getTime() > Date.now() ? (
+                    <EditSeats ride={ride} booked={booked} onSaved={load} onAuthError={onAuthError} />
+                ) : null}
             </Card>
 
             {/* Requests */}
@@ -176,6 +180,71 @@ export default function RideDetailScreen() {
             <SecondaryButton title="Refresh" onPress={load} />
             {error ? <Text style={[styles.error, { textAlign: 'center' }]}>{error}</Text> : null}
         </Screen>
+    );
+}
+
+/** Change how many seats the ride offers. Can't go below seats already confirmed. */
+function EditSeats({ ride, booked, onSaved, onAuthError }: {
+    ride: MyRide; booked: number; onSaved: () => Promise<void> | void; onAuthError: (e: unknown) => string;
+}) {
+    const [open, setOpen] = useState(false);
+    const [seats, setSeats] = useState(ride.total_seats);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [saved, setSaved] = useState(false);
+    const min = Math.max(1, booked);
+
+    const start = () => { setSeats(ride.total_seats); setError(null); setSaved(false); setOpen(true); };
+
+    const save = async () => {
+        if (seats === ride.total_seats) return setOpen(false);
+        setSaving(true);
+        setError(null);
+        try {
+            await updateRideSeats(ride.id_ride, seats);
+            await onSaved();
+            setSaved(true);
+            setOpen(false);
+        } catch (e) {
+            const msg = onAuthError(e);
+            setError(
+                /capacity/i.test(msg) ? 'Your vehicle doesn’t have that many seats.'
+                    : /below accepted/i.test(msg) ? `You can’t go below the ${plural(booked, 'confirmed seat')}.`
+                    : /only future open\/full/i.test(msg) ? 'This ride can no longer be edited.'
+                    : msg,
+            );
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    if (!open) {
+        return (
+            <View style={styles.editRow}>
+                {saved ? <Text style={styles.savedText}>Seats updated</Text> : <View />}
+                <Pressable onPress={start} accessibilityRole="button" hitSlop={8}>
+                    <Text style={styles.editLink}>Edit seats</Text>
+                </Pressable>
+            </View>
+        );
+    }
+    return (
+        <View style={styles.editBox}>
+            <Stepper
+                label="Seats offered"
+                value={seats}
+                min={min}
+                max={8}
+                onChange={n => { setSeats(n); setError(null); }}
+                hint={booked ? `At least ${booked}: that many seats are already confirmed.` : 'Up to your vehicle’s seat capacity.'}
+            />
+            <FormError message={error} />
+            <PrimaryButton title={seats === ride.total_seats ? 'No change' : `Save · ${plural(seats, 'seat')}`} onPress={save} loading={saving} disabled={seats === ride.total_seats} />
+            {!saving ? <TextLink label="Cancel" onPress={() => setOpen(false)} /> : null}
+            {ride.requests.accepted_seats || ride.requests.pending_requests ? (
+                <Text style={styles.meta}>Riders on this ride will be notified of the change.</Text>
+            ) : null}
+        </View>
     );
 }
 
@@ -215,6 +284,10 @@ const styles = StyleSheet.create({
     statRow: { flexDirection: 'row', gap: 12 },
     statValue: { fontSize: 20, fontWeight: '800', color: theme.text },
     seatBar: { flexDirection: 'row', gap: 6 },
+    editRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 },
+    editLink: { fontSize: 14, fontWeight: '700', color: theme.primary },
+    savedText: { fontSize: 14, fontWeight: '700', color: theme.success },
+    editBox: { gap: 12, marginTop: 4, paddingTop: 12, borderTopWidth: 1, borderTopColor: theme.border },
     seat: { flex: 1, height: 10, borderRadius: 5, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.background },
     infoRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
     infoValue: { fontSize: 14, fontWeight: '600', color: theme.text, flexShrink: 1, textAlign: 'right', textTransform: 'none' },

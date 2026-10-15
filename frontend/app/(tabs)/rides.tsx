@@ -24,11 +24,11 @@ const formatDay = (date: Date) => {
     if (same(date, today)) return 'Today';
     if (same(date, tomorrow)) return 'Tomorrow';
     if (same(date, yesterday)) return 'Yesterday';
-    return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+    return date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
 };
 
 const formatTime = (date: Date) =>
-    date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata' });
 
 export default function MyRidesScreen() {
     const [segment, setSegment] = useState<Segment>('upcoming');
