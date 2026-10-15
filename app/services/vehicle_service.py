@@ -1,49 +1,8 @@
-<<<<<<< Updated upstream
-from app.core.ids import new_id
-from app.repositories.vehicle_repo import VehicleRepository
-from app.schemas.vehicle import AddVehicleRequest, VehicleResponse
-
-
-class VehicleService:
-    def __init__(self, vehicles: VehicleRepository):
-        self._vehicles = vehicles
-
-    def add(self, id_user: int, req: AddVehicleRequest) -> VehicleResponse:
-        # Raises DuplicateRegistrationError. The user's first active vehicle becomes their default.
-        id_vehicle = new_id()
-        is_default = not self._vehicles.has_active_vehicle(id_user)
-        self._vehicles.create(
-            {
-                "id_vehicle": id_vehicle,
-                "id_user": id_user,
-                "make": req.make,
-                "model": req.model,
-                "color": req.colour,
-                "registration_number": req.registration_number,
-                "seat_capacity": req.seat_capacity,
-                "vehicle_type": req.vehicle_type,
-                "car_photo": req.photo_url,
-                "is_default": is_default,
-            }
-        )
-        return VehicleResponse(
-            id=str(id_vehicle),
-            photo_url=req.photo_url,
-            make=req.make,
-            model=req.model,
-            registration_number=req.registration_number,
-            colour=req.colour,
-            seat_capacity=req.seat_capacity,
-            vehicle_type=req.vehicle_type,
-            is_default=is_default,
-            status="active",
-        )
-=======
 from datetime import datetime, timezone
 
 from app.core.ids import new_id
 from app.repositories.vehicle_repo import VehicleRepository, VehicleRow
-from app.schemas.vehicle import VehicleCreate, VehicleStatus, VehicleUpdate
+from app.schemas.vehicle import AddVehicleRequest, AddVehicleResponse, VehicleCreate, VehicleStatus, VehicleUpdate
 
 
 class VehicleNotFoundError(Exception):
@@ -64,6 +23,7 @@ _COLUMNS = {
     "vehicleType": "vehicle_type",
     "isDefault": "is_default",
     "status": "status",
+    "photoUrl": "car_photo",
 }
 
 
@@ -91,11 +51,25 @@ class VehicleService:
                 "registration_number": req.registrationNumber,
                 "seat_capacity": req.seatCapacity,
                 "vehicle_type": req.vehicleType.value,
-                "is_default": req.isDefault or not self._vehicles.has_any(id_user),
+                "is_default": req.isDefault or not self._vehicles.has_active_vehicle(id_user),
+                "car_photo": req.photoUrl,
             },
             _utcnow(),
         )
         return self._vehicles.get(id_user, id_vehicle)
+
+    def add(self, id_user: int, req: AddVehicleRequest) -> AddVehicleResponse:
+        vehicle = self.create(id_user, VehicleCreate(
+            make=req.make, model=req.model, color=req.colour,
+            registrationNumber=req.registration_number, seatCapacity=req.seat_capacity,
+            vehicleType=req.vehicle_type, photoUrl=req.photo_url,
+        ))
+        return AddVehicleResponse(
+            id=str(vehicle.id_vehicle), photo_url=vehicle.car_photo,
+            make=vehicle.make, model=vehicle.model, registration_number=vehicle.registration_number,
+            colour=vehicle.color, seat_capacity=vehicle.seat_capacity,
+            vehicle_type=vehicle.vehicle_type, is_default=vehicle.is_default, status=vehicle.status,
+        )
 
     def list(self, id_user: int, status: VehicleStatus | None) -> list[VehicleRow]:
         return self._vehicles.list(id_user, status.value if status else None)
@@ -124,4 +98,3 @@ class VehicleService:
     def delete(self, id_user: int, id_vehicle: int) -> None:
         if not self._vehicles.soft_delete(id_user, id_vehicle, _utcnow()):
             raise VehicleNotFoundError
->>>>>>> Stashed changes

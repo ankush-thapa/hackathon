@@ -1,17 +1,3 @@
-<<<<<<< Updated upstream
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-
-from app.api.deps import get_current_session
-from app.db.session import get_db
-from app.repositories.vehicle_repo import DuplicateRegistrationError, VehicleRepository
-from app.schemas.vehicle import AddVehicleRequest, VehicleResponse
-from app.services.auth_service import CurrentSession
-from app.services.vehicle_service import VehicleService
-
-router = APIRouter(prefix="/v1/vehicles", tags=["vehicles"])
-
-=======
 from datetime import timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -20,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import require_session
 from app.db.session import get_db
 from app.repositories.vehicle_repo import DuplicateRegistrationError, VehicleRepository, VehicleRow
-from app.schemas.vehicle import VehicleCreate, VehicleResponse, VehicleStatus, VehicleUpdate
+from app.schemas.vehicle import AddVehicleRequest, AddVehicleResponse, VehicleCreate, VehicleResponse, VehicleStatus, VehicleUpdate
 from app.services.vehicle_service import InactiveDefaultError, VehicleNotFoundError, VehicleService
 
 router = APIRouter(prefix="/v1/vehicles", tags=["vehicles"])
@@ -29,33 +15,11 @@ _UNAUTHORIZED = {401: {"description": "Missing, invalid, expired, or revoked ses
 _NOT_FOUND = {404: {"description": "No such vehicle for the caller (or it was deleted)"}}
 _CONFLICT = {409: {"description": "Registration number taken, or an inactive vehicle set as default"}}
 
->>>>>>> Stashed changes
 
 def get_vehicle_service(db: Session = Depends(get_db)) -> VehicleService:
     return VehicleService(VehicleRepository(db))
 
 
-<<<<<<< Updated upstream
-@router.post(
-    "",
-    response_model=VehicleResponse,
-    status_code=status.HTTP_201_CREATED,
-    responses={
-        401: {"description": "Missing, invalid, expired, or revoked session"},
-        409: {"description": "Registration number already registered"},
-    },
-)
-def add_vehicle(
-    req: AddVehicleRequest,
-    current: CurrentSession = Depends(get_current_session),
-    service: VehicleService = Depends(get_vehicle_service),
-):
-    """Add a vehicle for the logged-in user. Upload the photo to POST /v1/media/upload first and send its `url`."""
-    try:
-        return service.add(current.id_user, req)
-    except DuplicateRegistrationError:
-        raise HTTPException(status.HTTP_409_CONFLICT, detail="registration_number already registered")
-=======
 def _response(v: VehicleRow) -> VehicleResponse:
     return VehicleResponse(
         vehicleId=str(v.id_vehicle),
@@ -69,6 +33,7 @@ def _response(v: VehicleRow) -> VehicleResponse:
         status=v.status,
         createdAt=v.created_at.replace(tzinfo=timezone.utc),  # stored as naive UTC
         updatedAt=v.updated_at.replace(tzinfo=timezone.utc),
+        photoUrl=v.car_photo,
     )
 
 
@@ -81,14 +46,22 @@ def _registration_taken() -> HTTPException:
 
 
 @router.post(
-    "", response_model=VehicleResponse, status_code=status.HTTP_201_CREATED, responses={**_UNAUTHORIZED, **_CONFLICT}
+    "", response_model=AddVehicleResponse | VehicleResponse, status_code=status.HTTP_201_CREATED, responses={**_UNAUTHORIZED, **_CONFLICT}
 )
 @require_session
-def create_vehicle(req: VehicleCreate, current_user_id: int, service: VehicleService = Depends(get_vehicle_service)):
-    """Add a vehicle for the caller. The first one becomes the default."""
+def create_vehicle(req: AddVehicleRequest | VehicleCreate, current_user_id: int, service: VehicleService = Depends(get_vehicle_service)):
+    """Add a vehicle for the caller; the first active one becomes default.
+
+    Accepts the frontend photo_url/colour/registration_number fields or the
+    camelCase CRUD request. The response matches the creation request format.
+    """
     try:
+        if isinstance(req, AddVehicleRequest):
+            return service.add(current_user_id, req)
         return _response(service.create(current_user_id, req))
     except DuplicateRegistrationError:
+        if isinstance(req, AddVehicleRequest):
+            raise HTTPException(status.HTTP_409_CONFLICT, detail="registration_number already registered") from None
         raise _registration_taken() from None
 
 
@@ -144,4 +117,3 @@ def delete_vehicle(vehicle_id: int, current_user_id: int, service: VehicleServic
     except VehicleNotFoundError:
         raise _not_found() from None
     return Response(status_code=status.HTTP_204_NO_CONTENT)
->>>>>>> Stashed changes
