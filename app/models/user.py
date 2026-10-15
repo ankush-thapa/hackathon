@@ -51,6 +51,7 @@ class User(Base):
     profile: Mapped["UserProfile | None"] = relationship(back_populates="user", uselist=False, passive_deletes="all")
     documents: Mapped[list["UserDocument"]] = relationship(back_populates="user", passive_deletes="all")
     vehicles: Mapped[list["Vehicle"]] = relationship(back_populates="user", passive_deletes="all")
+    sessions: Mapped[list["UserSession"]] = relationship(back_populates="user", passive_deletes="all")
 
     @validates("user_name")
     def _lower_user_name(self, _key: str, value: str | None) -> str | None:

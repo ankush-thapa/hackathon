@@ -2,7 +2,7 @@ import base64
 import hashlib
 import hmac
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import jwt
 
@@ -39,13 +39,12 @@ def verify_password_or_dummy(password: str, stored: str | None) -> bool:
     return stored is not None and ok
 
 
-def create_access_token(user_id: int) -> tuple[str, int]:
-    """Return (HS256 JWT, lifetime in seconds)."""
-    expires_in = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
-    now = datetime.now(timezone.utc)
-    claims = {"sub": str(user_id), "iat": now, "exp": now + timedelta(seconds=expires_in)}
-    return jwt.encode(claims, settings.JWT_SECRET, algorithm="HS256"), expires_in
+def create_access_token(user_id: int, session_id: int, issued_at: datetime, expires_at: datetime) -> str:
+    """HS256 JWT. `sid` ties the token to a user_session row so it can be revoked early."""
+    claims = {"sub": str(user_id), "sid": str(session_id), "iat": issued_at, "exp": expires_at}
+    return jwt.encode(claims, settings.JWT_SECRET, algorithm="HS256")
 
 
 def decode_access_token(token: str) -> dict:
-    return jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+    """Raises jwt.InvalidTokenError (incl. ExpiredSignatureError) on a bad or expired token."""
+    return jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"], options={"require": ["exp", "sub", "sid"]})
