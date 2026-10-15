@@ -56,9 +56,19 @@ class LoginRequest(BaseModel):
 class LoginResponse(BaseModel):
     accessToken: str
     tokenType: str = "Bearer"
-    expiresIn: int  # seconds
+    expiresIn: int  # seconds until accessToken expires
+    refreshToken: str  # single use; send to /v1/auth/refresh for a new pair
+    sessionExpiresAt: datetime  # UTC; after this, log in again
     userId: str
     sessionId: str
+
+
+class MeResponse(BaseModel):
+    userId: str
+
+
+class RefreshRequest(BaseModel):
+    refreshToken: str = Field(min_length=1, max_length=200)
 
 
 class SessionInfo(BaseModel):

@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "mysql+mysqlconnector://user:password@localhost:3306/hackathon"
     JWT_SECRET: str = "dev-only-insecure-secret-change-me-in-env"  # set 32+ random bytes outside local dev
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30  # also the session's maximum lifetime
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

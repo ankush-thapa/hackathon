@@ -9,7 +9,10 @@ from app.models.user import MYSQL_TABLE_ARGS
 
 
 class UserSession(Base):
-    """One row per login. The access token carries id_session as its `sid` claim."""
+    """One row per login. The access token carries id_session as its `sid` claim.
+
+    expires_at is the session's absolute end; refreshing issues new tokens but never extends it.
+    """
 
     __tablename__ = "user_session"
     __table_args__ = (
@@ -25,6 +28,7 @@ class UserSession(Base):
     ip_address: Mapped[str | None] = mapped_column(String(45))  # fits IPv6
     expires_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime3)  # set on logout / remote revoke
+    refresh_token_hash: Mapped[str | None] = mapped_column(String(64))  # sha256 hex of the current refresh secret
     created_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False, server_default=now_ms())
     updated_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False, server_default=now_ms_on_update())
 
