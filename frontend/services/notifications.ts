@@ -1,4 +1,5 @@
 import { ApiError, postJson, request } from './api';
+import { TIME_ZONE } from './format';
 import { createStore, useStore } from './store/createStore';
 import { getSession } from './session';
 
@@ -139,7 +140,7 @@ export async function sendNotification({ toUserId, type, rideId, bookingId, mess
 type RideRef = { rideId: string; from: string; to: string; departure: string };
 // Messages are stored and read later, so use an absolute date ("Fri 16 Oct, 09:00"), never "Tomorrow".
 const when = (iso: string) =>
-    new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    new Date(iso).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: TIME_ZONE });
 const route = (r: RideRef) => `${r.from} → ${r.to} (${when(r.departure)})`;
 const seatText = (n: number) => `${n} seat${n === 1 ? '' : 's'}`;
 

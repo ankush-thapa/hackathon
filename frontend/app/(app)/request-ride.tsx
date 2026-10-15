@@ -5,7 +5,9 @@ import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
 import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTitle, Stepper, TextLink } from '../../components/ui';
 import { Colors } from '../../constants/Colors';
-import { dayLabel, nextDays, timeLabel } from '../../services/format';
+import { dayLabel, timeLabel, today } from '../../services/format';
+import { DateField } from '../../components/DateField';
+import { useProfile } from '../../services/profile';
 import { CURRENCY } from '../../constants/Currency';
 import {
     DaySearch,
@@ -19,11 +21,9 @@ import {
     searchMore,
     searchRides,
 } from '../../services/rideSearch';
-import { useProfile } from '../../services/profile';
 import { getSession } from '../../services/session';
 
 const theme = Colors.light;
-const DAYS = nextDays(7);
 
 const money = (v: string | number) => {
     const n = Number(v);
@@ -38,7 +38,7 @@ export default function RequestRideScreen() {
 
     const [from, setFrom] = useState<Station | null>(null);
     const [to, setTo] = useState<Station | null>(null);
-    const [day, setDay] = useState<Date>(DAYS[0]);
+    const [day, setDay] = useState<Date>(() => today()); // computed on open, never stale
     const [seats, setSeats] = useState(1);
     const [formError, setFormError] = useState<string | null>(null);
 
@@ -126,25 +126,7 @@ export default function RequestRideScreen() {
                     <StationPicker label="To" value={to} onChange={setTo} stations={stations} exclude={from} />
                 </View>
 
-                <View style={{ gap: 8 }}>
-                    <Text style={styles.label}>Day</Text>
-                    <View style={styles.chips} accessibilityRole="radiogroup" accessibilityLabel="Day">
-                        {DAYS.map(d => {
-                            const selected = d.getTime() === day.getTime();
-                            return (
-                                <Pressable
-                                    key={d.toISOString()}
-                                    onPress={() => setDay(d)}
-                                    accessibilityRole="radio"
-                                    accessibilityState={{ selected }}
-                                    style={[styles.chip, selected && styles.chipActive]}
-                                >
-                                    <Text style={[styles.chipText, selected && { color: '#FFFFFF' }]}>{dayLabel(d)}</Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
-                </View>
+                <DateField label="Day" value={day} onChange={setDay} />
 
                 <Stepper label="Seats" value={seats} min={1} max={8} onChange={setSeats} />
 

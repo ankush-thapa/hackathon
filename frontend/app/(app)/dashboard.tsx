@@ -4,6 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Badge, Card, EmptyState, Screen, SectionTitle, TextLink } from '../../components/ui';
 import { Icon } from '../../components/Icon';
 import { Colors } from '../../constants/Colors';
+import { istHour } from '../../services/format';
 import { useProfile } from '../../services/profile';
 import { departureLabel } from '../../services/format';
 import { MyBooking, MyRide, MyRidesError, RideInfo, fetchMyBookings, fetchMyRides } from '../../services/myRides';
@@ -80,7 +81,7 @@ function TripCard({ trip, onPress }: { trip: Trip; onPress: () => void }) {
 }
 
 function greeting() {
-    const h = new Date().getHours();
+    const h = istHour();
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
 }
 
