@@ -22,6 +22,7 @@ _INSERT_USER = text(
     "INSERT INTO `user` (id_user, user_name, email, phone_number, password_hash) "
     "VALUES (:id_user, :user_name, :email, :phone_number, :password_hash)"
 )
+_MARK_COMPLETED = text("UPDATE `user` SET is_profile_completed = 1 WHERE id_user = :id_user")
 _PROFILE_EXISTS = text("SELECT 1 FROM user_profile WHERE id_user = :id_user LIMIT 1")
 _INSERT_PROFILE = text(
     "INSERT INTO user_profile (id_user, full_name, photo_url, about, date_of_birth, gender) "
@@ -60,6 +61,7 @@ def load_user_fixtures(db: Session, path: Path = FIXTURES_FILE) -> int:
                     "gender": p.get("gender"),
                 },
             )
+            db.execute(_MARK_COMPLETED, {"id_user": uid})
     db.commit()
     return created
 

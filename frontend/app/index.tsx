@@ -3,7 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensio
 import { Redirect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/Colors';
-import { getSession } from '../services/session';
+import { getSession, homeRoute } from '../services/session';
 
 const theme = Colors.light;
 const CREAM = '#F7EFEA';
@@ -39,7 +39,7 @@ export default function LandingScreen() {
     const scrollTo = (key: string) => scrollRef.current?.scrollTo({ y: sectionY.current[key] ?? 0, animated: true });
     const track = (key: string) => (e: { nativeEvent: { layout: { y: number } } }) => { sectionY.current[key] = e.nativeEvent.layout.y; };
 
-    if (signedIn) return <Redirect href="/dashboard" />;
+    if (signedIn) return <Redirect href={homeRoute()} />;
 
     return (
         <ScrollView ref={scrollRef} style={{ backgroundColor: CREAM }} contentContainerStyle={{ paddingTop: insets.top }}>

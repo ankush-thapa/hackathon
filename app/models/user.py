@@ -1,7 +1,8 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Enum, String, UniqueConstraint
+from sqlalchemy import Boolean, Enum, String, UniqueConstraint, text
+from sqlalchemy.dialects.mysql import TINYINT
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 
 from app.db.session import Base
@@ -47,6 +48,13 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False, server_default=now_ms())
     updated_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False, server_default=now_ms_on_update())
     last_active: Mapped[datetime | None] = mapped_column(DateTime3)  # update throttled, not per request
+    # Set once the user saves a profile; login uses it to send new users to profile setup.
+    is_profile_completed: Mapped[bool] = mapped_column(
+        Boolean().with_variant(TINYINT(display_width=1), "mysql"),
+        nullable=False,
+        default=False,
+        server_default=text("0"),
+    )
 
     profile: Mapped["UserProfile | None"] = relationship(back_populates="user", uselist=False, passive_deletes="all")
     documents: Mapped[list["UserDocument"]] = relationship(back_populates="user", passive_deletes="all")

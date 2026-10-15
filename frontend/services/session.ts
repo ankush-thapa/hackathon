@@ -8,6 +8,8 @@ export type Session = {
     tokenType: string;
     userId: string;
     expiresAt: number;
+    /** From the login response; false sends the user to /profile-setup. */
+    isProfileCompleted: boolean;
     /** The email or phone the user logged in with (the login API doesn't return the profile). */
     email?: string;
     phone?: string;
@@ -42,6 +44,17 @@ export function getSession(): Session | null {
     }
     return current;
 }
+
+/** Patch the stored session, e.g. after the profile is saved. */
+export function updateSession(patch: Partial<Session>) {
+    const s = getSession();
+    if (s) setSession({ ...s, ...patch });
+}
+
+/** Where a signed-in user should land. */
+export const homeRoute = (s: Session | null = getSession()) =>
+    // `=== false` so sessions stored before this flag existed aren't sent to setup.
+    s && s.isProfileCompleted === false ? '/profile-setup' : '/dashboard';
 
 export function clearSession() {
     current = null;

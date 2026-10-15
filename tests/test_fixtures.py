@@ -22,3 +22,12 @@ def test_existing_email_is_not_duplicated(seeded_db):
     seeded_db.execute(text("UPDATE `user` SET id_user = 1 WHERE id_user = 236357292134498304"))
     seeded_db.commit()
     assert load_user_fixtures(seeded_db) == 0  # same email under another id: skipped, not a unique-key error
+
+
+def test_fixture_users_with_profiles_are_marked_completed(seeded_db):
+    from sqlalchemy import text
+
+    rows = seeded_db.execute(
+        text("SELECT u.is_profile_completed FROM `user` u JOIN user_profile p ON p.id_user = u.id_user")
+    ).all()
+    assert rows and all(r.is_profile_completed for r in rows)

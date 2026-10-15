@@ -4,7 +4,7 @@ import { View, useWindowDimensions } from 'react-native';
 import { AppHeader } from '../../components/AppHeader';
 import { DrawerSidebar, PermanentSidebar } from '../../components/Sidebar';
 import { Colors } from '../../constants/Colors';
-import { getSession } from '../../services/session';
+import { getSession, homeRoute } from '../../services/session';
 
 const WIDE_SCREEN = 1024;
 
@@ -14,7 +14,9 @@ export default function AppLayout() {
     const [menuOpen, setMenuOpen] = useState(false);
     const wide = width >= WIDE_SCREEN;
 
-    if (!getSession()) return <Redirect href="/login" />;
+    const session = getSession();
+    if (!session) return <Redirect href="/login" />;
+    if (homeRoute(session) === '/profile-setup') return <Redirect href="/profile-setup" />;
 
     return (
         <View style={{ flex: 1, backgroundColor: Colors.light.background }}>
