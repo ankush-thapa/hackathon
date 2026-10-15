@@ -1,10 +1,15 @@
-from sqlalchemy import BigInteger, DateTime
+from sqlalchemy import BigInteger, DateTime, Integer, SmallInteger
 from sqlalchemy.dialects import mysql
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.sql.expression import FunctionElement
 
 # BIGINT UNSIGNED on MySQL, plain BIGINT elsewhere (SQLite in tests).
 UnsignedBigInt = BigInteger().with_variant(mysql.BIGINT(unsigned=True), "mysql")
+
+# INT UNSIGNED / TINYINT UNSIGNED on MySQL.
+UnsignedInt = Integer().with_variant(mysql.INTEGER(unsigned=True), "mysql")
+UnsignedTinyInt = SmallInteger().with_variant(mysql.TINYINT(unsigned=True), "mysql")
+TinyInt = SmallInteger().with_variant(mysql.TINYINT(), "mysql")
 
 # DATETIME(3) on MySQL.
 DateTime3 = DateTime().with_variant(mysql.DATETIME(fsp=3), "mysql")
