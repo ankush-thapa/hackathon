@@ -8,7 +8,8 @@ import { Colors } from '../../../constants/Colors';
 import { CURRENCY } from '../../../constants/Currency';
 import { dayLabel, istDay, timeLabel } from '../../../services/format';
 import { MyRide, MyRidesError, RideStatus, cachedMyRide, findMyRide, money, updateRideSeats, vehicleText } from '../../../services/myRides';
-import { RideRequest, fetchRideRequests } from '../../../services/rideRequests';
+import { Passenger, RideRequest, fetchPassengers, fetchRideRequests } from '../../../services/rideRequests';
+import { PersonCard } from '../../../components/PersonCard';
 
 const theme = Colors.light;
 
@@ -28,6 +29,7 @@ export default function RideDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const [ride, setRide] = useState<MyRide | null>(() => (id ? cachedMyRide(id) : null));
     const [requests, setRequests] = useState<RideRequest[]>([]);
+    const [passengers, setPassengers] = useState<Passenger[] | null>(null);
     const [loading, setLoading] = useState(!ride);
     const [notFound, setNotFound] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -48,10 +50,15 @@ export default function RideDetailScreen() {
         if (!id) return;
         setError(null);
         try {
-            const [fresh, pending] = await Promise.all([findMyRide(id), fetchRideRequests(id).catch(() => [] as RideRequest[])]);
+            const [fresh, pending, riders] = await Promise.all([
+                findMyRide(id),
+                fetchRideRequests(id).catch(() => [] as RideRequest[]),
+                fetchPassengers(id).catch(() => null), // null = couldn't load; the section says so
+            ]);
             setRide(fresh);
             setNotFound(!fresh);
             setRequests(pending);
+            setPassengers(riders);
         } catch (e) {
             setError(onAuthError(e));
         } finally {
@@ -149,6 +156,30 @@ export default function RideDetailScreen() {
                     <EditSeats ride={ride} booked={booked} onSaved={load} onAuthError={onAuthError} />
                 ) : null}
             </Card>
+
+            {/* Passengers: confirmed riders, visible only to the driver */}
+            <SectionTitle title={passengers?.length ? `Passengers (${passengers.length})` : 'Passengers'} />
+            {passengers === null ? (
+                <EmptyState title="Couldn’t load passengers" body="Check your connection and try again." action={<SecondaryButton title="Try again" onPress={load} />} />
+            ) : passengers.length ? (
+                <Card style={{ gap: 16 }}>
+                    {passengers.map((p, i) => (
+                        <View key={p.idBooking} style={i > 0 ? styles.passengerDivider : undefined}>
+                            <PersonCard
+                                name={p.riderName}
+                                photoUrl={p.riderPhotoUrl}
+                                details={[
+                                    `${plural(p.seats, 'seat')} · ${CURRENCY}${money(p.totalAmount)}`,
+                                    p.confirmedAt ? `Confirmed ${dayLabel(istDay(new Date(p.confirmedAt)))} at ${timeLabel(new Date(p.confirmedAt))}` : 'Confirmed',
+                                ]}
+                                note={p.note}
+                            />
+                        </View>
+                    ))}
+                </Card>
+            ) : (
+                <EmptyState title="No passengers yet" body="Riders you accept will show up here with their details." />
+            )}
 
             {/* Requests */}
             <SectionTitle title="Seat requests" />
@@ -269,6 +300,7 @@ const InfoRow = ({ label, value }: { label: string; value: string }) => (
 );
 
 const styles = StyleSheet.create({
+    passengerDivider: { borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 16 },
     center: { alignItems: 'center', paddingVertical: 40, gap: 12 },
     error: { fontSize: 14, color: theme.error },
     badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },

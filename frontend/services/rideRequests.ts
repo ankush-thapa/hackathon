@@ -49,6 +49,26 @@ export async function fetchRideRequests(idRide: string): Promise<RideRequest[]> 
     return res.items.map(toRequest).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 }
 
+export type Passenger = RideRequest & { idRider: string; confirmedAt: string | null };
+
+/**
+ * Confirmed passengers on one of my rides (driver only), oldest booking first.
+ * GET /v1/rides/{id}/bookings?status=accepted — follows next_cursor so large rides load fully.
+ */
+export async function fetchPassengers(idRide: string): Promise<Passenger[]> {
+    const all: Passenger[] = [];
+    let cursor: string | null = null;
+    do {
+        const q = new URLSearchParams({ status: 'accepted', limit: '50' });
+        if (cursor) q.set('cursor', cursor);
+        const res: { items: (RiderBookingItem & { responded_at?: string | null })[]; next_cursor?: string | null } =
+            await request(`/v1/rides/${idRide}/bookings?${q}`);
+        all.push(...res.items.map(b => ({ ...toRequest(b), idRider: b.id_rider, confirmedAt: b.responded_at ?? null })));
+        cursor = res.next_cursor ?? null;
+    } while (cursor);
+    return all.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
 /** Pending requests for several rides at once, keyed by ride id (only rides that have some). */
 export async function fetchRequestsFor(rideIds: string[]): Promise<Record<string, RideRequest[]>> {
     const lists = await Promise.all(rideIds.map(id => fetchRideRequests(id).catch(() => [] as RideRequest[])));

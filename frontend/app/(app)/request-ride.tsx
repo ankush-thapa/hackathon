@@ -7,6 +7,7 @@ import { Badge, Card, EmptyState, FormError, Screen, SecondaryButton, SectionTit
 import { Colors } from '../../constants/Colors';
 import { dayLabel, timeLabel, today } from '../../services/format';
 import { DateField } from '../../components/DateField';
+import { PersonCard } from '../../components/PersonCard';
 import { useProfile } from '../../services/profile';
 import { CURRENCY } from '../../constants/Currency';
 import {
@@ -268,9 +269,15 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
                     </Text>
                 </View>
             </View>
-            <Text style={styles.meta}>
-                {driver}{car ? ` · ${car}` : ''} · {ride.availableSeats} seat{ride.availableSeats === 1 ? '' : 's'} left
-            </Text>
+            <View style={styles.driverBox}>
+                <PersonCard
+                    size="compact"
+                    role="Driver"
+                    name={driver}
+                    photoUrl={ride.driver.photoUrl}
+                    details={[car, `${ride.availableSeats} seat${ride.availableSeats === 1 ? '' : 's'} left`]}
+                />
+            </View>
             {ride.notes ? <Text style={styles.note}>“{ride.notes}”</Text> : null}
 
             {step === 'done' ? (
@@ -304,6 +311,7 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
 }
 
 const styles = StyleSheet.create({
+    driverBox: { borderTopWidth: 1, borderTopColor: theme.border, paddingTop: 12, marginTop: 4 },
     center: { alignItems: 'center', paddingVertical: 40, gap: 12 },
     error: { fontSize: 14, color: theme.error },
     label: { fontSize: 14, fontWeight: '600', color: theme.text },
