@@ -1,0 +1,197 @@
+# Replace variables with IDs from your own API responses. JWT = login.accessToken.
+# Large IDs must be strings in JSON. This file does not execute automatically.
+# Existing offer/booking/profile/vehicle payload names are retained.
+@base = http://localhost:8000
+@token = REPLACE_WITH_ACCESS_TOKEN
+@driver_token = REPLACE_WITH_DRIVER_ACCESS_TOKEN
+@ride = REPLACE_WITH_RIDE_ID
+@booking = REPLACE_WITH_BOOKING_ID
+@vehicle = REPLACE_WITH_OWN_ACTIVE_VEHICLE_ID
+@document = REPLACE_WITH_OWN_DOCUMENT_ID
+
+### Login (register first if necessary)
+POST {{base}}/v1/auth/login
+Content-Type: application/json
+
+{"email":"your-email@example.com","password":"YOUR_PASSWORD"}
+
+### Offer: all existing fields shown. Only id_vehicle, station IDs, departure_time and total_seats required.
+# Choose a future departure; optional key must be new for each distinct offer.
+POST {{base}}/v1/rides/offer
+Authorization: Bearer {{driver_token}}
+Content-Type: application/json
+Idempotency-Key: offer-client-request-001
+
+{
+  "id_vehicle":"{{vehicle}}",
+  "id_source_station":1,
+  "id_destination_station":2,
+  "departure_time":"2030-01-01T09:00:00+05:30",
+  "estimated_arrival_time":"2030-01-01T10:00:00+05:30",
+  "total_seats":3,
+  "price_per_seat":"75.00",
+  "notes":"Meet at the main gate"
+}
+
+### Book: id_ride and seats required; rider_note optional. Request does not reserve seats yet.
+POST {{base}}/v1/ride/booking
+Authorization: Bearer {{token}}
+Content-Type: application/json
+Idempotency-Key: booking-client-request-001
+
+{"id_ride":"{{ride}}","seats":1,"rider_note":"I will be at the gate"}
+
+### Driver request/passenger list: authoritative bookings, independent of notifications.
+GET {{base}}/v1/rides/{{ride}}/bookings?status=requested&limit=20
+Authorization: Bearer {{driver_token}}
+
+### Driver approval: no body. Seats deducted transactionally here.
+POST {{base}}/v1/ride/booking/{{booking}}/approve
+Authorization: Bearer {{driver_token}}
+
+### Driver rejection: reason optional. Only requested bookings may be rejected.
+POST {{base}}/v1/ride/booking/{{booking}}/reject
+Authorization: Bearer {{driver_token}}
+Content-Type: application/json
+
+{"reason":"Cannot accommodate this pickup"}
+
+### Rider or driver cancellation: reason optional. Accepted seats restored transactionally.
+POST {{base}}/v1/ride/booking/{{booking}}/cancel
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"reason":"Plans changed"}
+
+### Booking detail: rider or driver only.
+GET {{base}}/v1/ride/booking/{{booking}}
+Authorization: Bearer {{token}}
+
+### Ride detail: authenticated users.
+GET {{base}}/v1/rides/{{ride}}
+Authorization: Bearer {{token}}
+
+### Driver's rich ride detail (route names, requests counts, vehicle).
+GET {{base}}/v1/me/rides/{{ride}}
+Authorization: Bearer {{driver_token}}
+
+### Edit: same fields as offer; supply at least one. Omitted fields retained.
+# notes/estimated_arrival_time can be null. Route/vehicle/departure/price changes blocked with active bookings.
+PATCH {{base}}/v1/rides/{{ride}}
+Authorization: Bearer {{driver_token}}
+Content-Type: application/json
+
+{"notes":"Meet at gate 2","total_seats":3}
+
+### Cancel entire ride and active bookings; reason optional.
+POST {{base}}/v1/rides/{{ride}}/cancel
+Authorization: Bearer {{driver_token}}
+Content-Type: application/json
+
+{"reason":"Vehicle unavailable"}
+
+### Start ride: no body. At/after scheduled departure; pending requests expire.
+POST {{base}}/v1/rides/{{ride}}/start
+Authorization: Bearer {{driver_token}}
+
+### Complete started ride and accepted bookings: no body.
+POST {{base}}/v1/rides/{{ride}}/complete
+Authorization: Bearer {{driver_token}}
+
+### Expire pending requests after departure: no body.
+# Scheduled alternative: python -m app.jobs.expire_requests --limit 100
+POST {{base}}/v1/rides/{{ride}}/expire-requests
+Authorization: Bearer {{driver_token}}
+
+### Save profile: fullName required; optional legacy userId must match JWT owner.
+POST {{base}}/v1/auth/profile
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"fullName":"Your Name","photoUrl":null,"about":"Carpooling to work","dateOfBirth":"1995-01-01","gender":"prefer_not_to_say"}
+
+### Profile read
+GET {{base}}/v1/auth/profile
+Authorization: Bearer {{token}}
+
+### Contact update: current_password plus email and/or phone. No OTP or verification claim.
+PATCH {{base}}/v1/auth/account
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"current_password":"YOUR_CURRENT_PASSWORD","email":"your-new-email@example.com","phone":"+919876543210"}
+
+### Password change: BOTH fields required. All sessions revoked; login again afterward.
+POST {{base}}/v1/auth/change-password
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"current_password":"YOUR_CURRENT_PASSWORD","new_password":"YOUR_NEW_PASSWORD123"}
+
+### Account soft deletion: current_password required. Cancels rides/bookings; revokes sessions.
+# Cannot delete during a started ride. Retains historical records and existing contact unique keys.
+DELETE {{base}}/v1/auth/account
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"current_password":"YOUR_CURRENT_PASSWORD"}
+
+### Private document upload: multipart doc_type + doc_number + file ALL required.
+# Allowed doc_type: driving_license, id_proof, vehicle_rc, insurance.
+# Choose a real local file below. PDF/JPEG/PNG/WebP; default limit 5 MB.
+POST {{base}}/v1/me/documents
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=DocBoundary
+
+--DocBoundary
+Content-Disposition: form-data; name="doc_type"
+
+driving_license
+--DocBoundary
+Content-Disposition: form-data; name="doc_number"
+
+YOUR_DOCUMENT_NUMBER
+--DocBoundary
+Content-Disposition: form-data; name="file"; filename="document.pdf"
+Content-Type: application/pdf
+
+< ./document.pdf
+--DocBoundary--
+
+### List own documents: optional doc_type/include_inactive/limit/cursor
+GET {{base}}/v1/me/documents?limit=20
+Authorization: Bearer {{token}}
+
+### Private download: authorization required, not a public media URL.
+GET {{base}}/v1/me/documents/{{document}}/download
+Authorization: Bearer {{token}}
+
+### Deactivate own document: no body.
+DELETE {{base}}/v1/me/documents/{{document}}
+Authorization: Bearer {{token}}
+
+### Notification history includes read/unread; pass next_cursor as cursor.
+GET {{base}}/v1/notifications/history?limit=20
+Authorization: Bearer {{token}}
+
+### Unread notifications: backend creates booking/ride event notifications automatically.
+GET {{base}}/v1/notifications?limit=20
+Authorization: Bearer {{token}}
+
+### Refresh: use login.refreshToken, not accessToken. Store BOTH rotated tokens.
+POST {{base}}/v1/auth/refresh
+Content-Type: application/json
+
+{"refreshToken":"REPLACE_WITH_REFRESH_TOKEN"}
+
+### Revoke current session: no body.
+POST {{base}}/v1/auth/logout
+Authorization: Bearer {{token}}
+
+### Readiness: no body; checks database connectivity, not schema/migration currency.
+GET {{base}}/health/ready
+
+# No OTP/password-recovery token flow was added: existing models have no secure recovery-token state.
+# No schema migrations are needed for these changes. Existing notification migration must already be applied.
+# Retry keys are persisted as resource IDs using a secret-derived hash; keep JWT_SECRET stable across replicas.
+# Same key + changed payload is a conflict; same key + same payload returns current state, not original response.

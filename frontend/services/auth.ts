@@ -68,6 +68,7 @@ export function signup(input: SignupInput): Promise<RegisterResponse> {
 // --- POST /v1/auth/login ----------------------------------------------------------------
 type LoginResponse = {
     accessToken: string;
+    refreshToken: string;
     tokenType?: string;
     expiresIn: number;
     userId: string;
@@ -87,6 +88,7 @@ export async function login(identifier: string, password: string): Promise<Sessi
 
     const session: Session = {
         accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
         tokenType: data.tokenType ?? 'Bearer',
         userId: data.userId,
         expiresAt: Date.now() + data.expiresIn * 1000,

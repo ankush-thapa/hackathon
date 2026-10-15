@@ -47,7 +47,7 @@ export default function RideDetailScreen() {
         if (!id) return;
         setError(null);
         try {
-            const [fresh, pending] = await Promise.all([findMyRide(id), fetchPendingRequests().catch(() => ({}))]);
+            const [fresh, pending] = await Promise.all([findMyRide(id), fetchPendingRequests(id)]);
             setRide(fresh);
             setNotFound(!fresh);
             setRequests((pending as Record<string, RideRequest[]>)[id] ?? []);
@@ -157,7 +157,7 @@ export default function RideDetailScreen() {
                     title={pending ? `${plural(pending, 'request')} waiting` : 'No requests right now'}
                     body={
                         pending
-                            ? "These were made before request notifications were added, so they can't be approved here yet."
+                            ? "Refresh to load the latest requests."
                             : actionable ? 'New requests from riders will show up here.' : 'This ride is no longer taking requests.'
                     }
                 />

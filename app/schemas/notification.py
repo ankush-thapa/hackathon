@@ -12,6 +12,7 @@ class NotificationItem(BaseModel):
     idBooking: str | None
     message: str
     createdAt: datetime  # UTC
+    read: bool = False
 
     @field_validator("idNotification", "idRide", "idBooking", mode="before")
     @classmethod

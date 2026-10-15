@@ -47,6 +47,7 @@ class BookingResponse(BaseModel):
     total_amount: Decimal
     rider_note: str | None
     status: BookingStatus
+    reject_reason: str | None = None
     cancel_reason: str | None = None
     responded_at: datetime | None = None  # when the driver approved
     cancelled_at: datetime | None = None

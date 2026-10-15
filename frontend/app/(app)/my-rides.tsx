@@ -75,7 +75,7 @@ export default function MyRidesScreen() {
         try {
             const [page, pending] = await Promise.all([
                 kind === 'offered' ? fetchMyRides(scope) : fetchMyBookings(scope),
-                kind === 'offered' && scope === 'upcoming' ? fetchPendingRequests().catch(() => ({})) : Promise.resolve({}),
+                kind === 'offered' && scope === 'upcoming' ? fetchPendingRequests() : Promise.resolve({}),
             ]);
             if (id === reqId.current) {
                 setRequests(pending);

@@ -19,7 +19,6 @@ import {
     searchRides,
 } from '../../services/rideSearch';
 import { useProfile } from '../../services/profile';
-import { notifyDriverOfRequest } from '../../services/rideRequests';
 import { getSession } from '../../services/session';
 
 const theme = Colors.light;
@@ -259,16 +258,6 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         try {
             const booking = await bookRide(ride.idRide, seats, note);
             setStep('done');
-            const s = getSession();
-            notifyDriverOfRequest({
-                idDriver: ride.driver.userId,
-                idRide: ride.idRide,
-                idBooking: booking.id_booking,
-                departureTime: ride.departureTime,
-                seats,
-                riderName: profile.fullName || s?.email?.split('@')[0] || 'A rider',
-                note,
-            });
         } catch (e) {
             onAuthError(e);
             setError(e instanceof RideSearchError ? e.message : 'Could not send your request. Please try again.');

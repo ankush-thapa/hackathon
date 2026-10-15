@@ -1,13 +1,14 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_id
 from app.core.pagination import InvalidCursorError
 from app.db.session import get_db
 from app.repositories.my_ride_repo import MyRideRepository
-from app.schemas.my_ride import MyBookingsResponse, MyRidesResponse, MyRideScope
+from app.schemas.my_ride import MyBookingItem, MyRideItem, RideRequestsInfo, MyBookingsResponse, MyRidesResponse, MyRideScope
+from app.services.my_ride_service import _ride_fields
 from app.services.my_ride_service import MyRideService
 
 router = APIRouter(prefix="/v1/me", tags=["me"])
@@ -56,3 +57,13 @@ def list_my_bookings(
         return service.list_booked(id_user=current_user_id, scope=when, page_size=page_size, cursor=cursor)
     except InvalidCursorError:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, detail="invalid cursor") from None
+
+
+@router.get("/rides/{id_ride}", response_model=MyRideItem, summary="One of my offered rides")
+def my_ride_detail(id_ride: Annotated[int, Path(gt=0, le=2**64-1)],
+                   current_user_id: int = Depends(get_current_user_id), db: Session = Depends(get_db)):
+    row = MyRideRepository(db).get_offered(current_user_id, id_ride)
+    if row is None:
+        raise HTTPException(404, "ride not found")
+    return MyRideItem(**_ride_fields(row), requests=RideRequestsInfo(
+        pending_requests=row["pending_requests"], accepted_seats=int(row["accepted_seats"])))

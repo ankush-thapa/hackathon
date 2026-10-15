@@ -1,3 +1,4 @@
+from app.core.transactions import retry_lock_conflicts
 from datetime import datetime
 
 from sqlalchemy import Numeric, bindparam, text
@@ -96,6 +97,7 @@ class RideRepository:
     def __init__(self, db: Session):
         self._db = db
 
+    @retry_lock_conflicts
     def create(self, params: dict) -> dict:
         # Lock reference rows on MySQL so ownership, status, and capacity stay
         # valid until the offer is committed. SQLite is used by the API tests.
@@ -110,11 +112,25 @@ class RideRepository:
                 raise VehicleCapacityError
             stations = {
                 row.id_station: row.is_active
-                for row in self._db.execute(text(_STATIONS_SQL + lock), params)
+                for row in self._db.execute(text(_STATIONS_SQL + (" FOR SHARE" if lock else "")), params)
             }
             for field in ("id_source_station", "id_destination_station"):
                 if not stations.get(params[field]):
                     raise StationNotFoundError(field)
+            existing_query = text(_SELECT_RIDE.element.text + lock).columns(**{column.key: column.type for column in _SELECT_RIDE.selected_columns})
+            existing = self._db.execute(existing_query, {"id_ride": params["id_ride"]}).mappings().first()
+            if existing:
+                fields = ("id_driver", "id_vehicle", "id_source_station", "id_destination_station", "departure_time",
+                          "estimated_arrival_time", "total_seats", "price_per_seat", "notes")
+                if any(existing[k] != params[k] for k in fields):
+                    from fastapi import HTTPException
+                    raise HTTPException(409, "Idempotency-Key already used for a different or modified ride")
+                self._db.commit()
+                return dict(existing)
+            from datetime import datetime, timezone
+            if params["departure_time"] <= datetime.now(timezone.utc).replace(tzinfo=None):
+                from app.services.ride_service import DepartureInPastError
+                raise DepartureInPastError
             self._db.execute(_INSERT_RIDE, params)
             ride = dict(self._db.execute(_SELECT_RIDE, {"id_ride": params["id_ride"]}).mappings().one())
             self._db.commit()

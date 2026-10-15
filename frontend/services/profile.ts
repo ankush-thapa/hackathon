@@ -50,3 +50,11 @@ export async function uploadPhoto(asset: { uri: string; mimeType?: string | null
     const res = await request<MediaUploadResponse>('/v1/media/upload', { method: 'POST', body: form });
     return res.url;
 }
+
+
+export async function fetchMyProfile(): Promise<Profile> {
+    const profile = await request<Profile>('/v1/auth/profile');
+    const { userId: _id, ...rest } = profile;
+    store.set(rest);
+    return profile;
+}

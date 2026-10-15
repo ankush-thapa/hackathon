@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Header, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_id
@@ -43,6 +43,7 @@ def get_booking_service(db: Session = Depends(get_db)) -> BookingService:
 )
 def book_ride(
     request: BookRideRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", min_length=8, max_length=128),
     current_user_id: int = Depends(get_current_user_id),
     service: BookingService = Depends(get_booking_service),
 ):
@@ -50,9 +51,11 @@ def book_ride(
 
     The booking starts as `requested`; the driver then accepts or rejects it. The price per seat is
     copied from the ride at booking time and total_amount = price_per_seat * seats.
+    Optional Idempotency-Key (8-128 chars) makes identical retries return the same booking
+    in its current state; using the same key with another payload returns 409.
     """
     try:
-        booking = service.book(current_user_id, request)
+        booking = service.book(current_user_id, request, idempotency_key)
     except RideNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail="ride not found") from None
     except OwnRideError:

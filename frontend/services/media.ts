@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
 import { API_URL } from '../constants/Config';
+import { accessToken } from './session';
 
 export class MediaError extends Error {}
 
@@ -22,7 +23,7 @@ export async function uploadImage(uri: string, mimeType = 'image/jpeg'): Promise
 
     let res: Response;
     try {
-        res = await fetch(`${API_URL}/v1/media/upload`, { method: 'POST', body: form });
+        res = await fetch(`${API_URL}/v1/media/upload`, { method: 'POST', body: form, headers: { Authorization: `Bearer ${await accessToken()}` } });
     } catch {
         throw new MediaError(`Could not reach the server at ${API_URL}`);
     }

@@ -1,7 +1,7 @@
 from datetime import date, datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user_id, require_session
@@ -36,6 +36,7 @@ def get_ride_service(db: Session = Depends(get_db)) -> RideService:
 )
 def offer_ride(
     request: OfferRideRequest,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", min_length=8, max_length=128),
     current_user_id: int = Depends(get_current_user_id),
     service: RideService = Depends(get_ride_service),
 ):
@@ -44,9 +45,11 @@ def offer_ride(
     id_vehicle is required and must belong to the logged-in driver. The server
     sets id_driver, available_seats = total_seats, status = open, and version = 1.
     Send timezone-aware times; responses are UTC and large IDs are strings.
+    Optional Idempotency-Key (8-128 chars): reuse it with identical payload for a safe retry.
+    Replays return the current resource state; changed payload/resource fields return 409.
     """
     try:
-        ride = service.offer(current_user_id, request)
+        ride = service.offer(current_user_id, request, idempotency_key)
     except VehicleNotFoundError:
         raise HTTPException(404, detail="vehicle not found for this driver") from None
     except StationNotFoundError as error:

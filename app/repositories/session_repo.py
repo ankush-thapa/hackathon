@@ -56,8 +56,14 @@ class SessionRepository:
 
     def create(
         self, id_session: int, id_user: int, user_agent: str | None, ip_address: str | None,
-        created_at: datetime, expires_at: datetime, refresh_token_hash: str,
+        created_at: datetime, expires_at: datetime, refresh_token_hash: str, expected_password_hash: str | None = None,
     ) -> None:
+        lock = " FOR UPDATE" if self._db.get_bind().dialect.name == "mysql" else ""
+        user = self._db.execute(text("SELECT status, password_hash FROM `user` WHERE id_user = :id_user" + lock), {"id_user": id_user}).first()
+        if user is None or user.status != "active" or (expected_password_hash is not None and user.password_hash != expected_password_hash):
+            self._db.rollback()
+            from fastapi import HTTPException
+            raise HTTPException(403, "account inactive")
         self._db.execute(
             _INSERT_SESSION,
             {

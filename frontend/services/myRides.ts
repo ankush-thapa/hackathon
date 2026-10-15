@@ -67,18 +67,15 @@ export const cachedMyRide = (idRide: string) => rideCache.get(idRide) ?? null;
  * One of my offered rides by id. There's no GET /v1/rides/{id}, so this pages through
  * /v1/me/rides (upcoming first, then everything) until it finds it. Returns null if not mine.
  */
-export async function findMyRide(idRide: string, maxPages = 10): Promise<MyRide | null> {
-    for (const scope of ['upcoming', 'all'] as const) {
-        let cursor: string | null = null;
-        for (let i = 0; i < maxPages; i++) {
-            const page: Page<MyRide> = await fetchMyRides(scope, cursor);
-            const hit = page.items.find(r => r.id_ride === idRide);
-            if (hit) return hit;
-            if (!page.next_page) break;
-            cursor = page.next_page;
-        }
+export async function findMyRide(idRide: string): Promise<MyRide | null> {
+    try {
+        const ride = await request<MyRide>(`/v1/me/rides/${idRide}`);
+        rideCache.set(idRide, ride);
+        return ride;
+    } catch (e) {
+        if (e instanceof ApiError && e.status === 404) return null;
+        throw e;
     }
-    return null;
 }
 
 export const fetchMyBookings = (scope: Scope, cursor?: string | null) =>
@@ -98,3 +95,15 @@ export const money = (v: string | number) => {
 };
 
 export const vehicleText = (v: VehicleInfo | null) => (v ? `${v.color} ${v.make} ${v.model}` : null);
+
+
+export const cancelOfferedRide = (idRide: string, reason?: string) =>
+    postJson(`/v1/rides/${idRide}/cancel`, reason ? { reason } : {});
+export const startOfferedRide = (idRide: string) => postJson(`/v1/rides/${idRide}/start`, {});
+export const completeOfferedRide = (idRide: string) => postJson(`/v1/rides/${idRide}/complete`, {});
+export const expireRideRequests = (idRide: string) => postJson(`/v1/rides/${idRide}/expire-requests`, {});
+export type EditRidePayload = { id_vehicle?: string; id_source_station?: number; id_destination_station?: number;
+    departure_time?: string; estimated_arrival_time?: string | null; total_seats?: number;
+    price_per_seat?: string | number; notes?: string | null };
+export const editOfferedRide = (idRide: string, payload: EditRidePayload) =>
+    request(`/v1/rides/${idRide}`, { method: 'PATCH', body: JSON.stringify(payload) });

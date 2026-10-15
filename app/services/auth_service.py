@@ -115,6 +115,7 @@ class AuthService:
             created_at=now,
             expires_at=session_expires_at,
             refresh_token_hash=refresh_hash,
+            expected_password_hash=creds.password_hash,
         )
         self._users.touch_last_active(creds.id_user, now)
         return self._issue(creds.id_user, id_session, session_expires_at, refresh_token, now)

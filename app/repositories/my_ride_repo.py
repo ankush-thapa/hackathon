@@ -55,6 +55,11 @@ class MyRideRepository:
     def __init__(self, db: Session):
         self._db = db
 
+    def get_offered(self, id_user: int, id_ride: int) -> dict | None:
+        sql = _ROLES["driver"]["select"] + " WHERE r.id_driver = :me AND r.id_ride = :ride"
+        row = self._db.execute(text(sql), {"me": id_user, "ride": id_ride}).mappings().first()
+        return dict(row) if row else None
+
     def list_offered(self, **kw) -> list[dict]:
         """Rides the user offered as a driver."""
         return self._list("driver", **kw)

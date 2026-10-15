@@ -36,9 +36,14 @@ def get_profile(
 
 @router.post("/profile", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
 def save_profile(
-    req: SaveProfileRequest, response: Response, service: ProfileService = Depends(get_profile_service)
+    req: SaveProfileRequest, response: Response,
+    current_user_id: int = Depends(get_current_user_id),
+    service: ProfileService = Depends(get_profile_service)
 ):
     """Create the profile, or fully replace it if one exists (201 on create, 200 on update)."""
+    if req.userId is not None and req.userId != current_user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, detail="cannot update another user profile")
+    req = req.model_copy(update={"userId": current_user_id})
     try:
         created = service.upsert(req)
     except UserNotFoundError:

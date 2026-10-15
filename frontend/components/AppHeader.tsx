@@ -3,9 +3,9 @@ import { Image, Platform, Pressable, StatusBar, StyleSheet, Text, View } from 'r
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Colors } from '../constants/Colors';
-import { useUnreadCount } from '../services/notifications';
+import { resetNotifications, useUnreadCount } from '../services/notifications';
 import { resetProfile, useProfile } from '../services/profile';
-import { clearSession, getSession } from '../services/session';
+import { logoutSession, getSession } from '../services/session';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { IconButton } from './IconButton';
@@ -22,9 +22,10 @@ export const AppHeader = ({ onMenuPress, showMenuButton }: Props) => {
     const session = getSession();
     const displayName = profile.fullName || session?.email || session?.phone || 'Me';
 
-    const logout = () => {
-        clearSession();
+    const logout = async () => {
+        try { await logoutSession(); } catch { /* local session is cleared even if offline */ }
         resetProfile();
+        resetNotifications();
         router.replace('/login');
     };
 

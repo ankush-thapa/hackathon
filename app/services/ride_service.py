@@ -1,7 +1,7 @@
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 
-from app.core.ids import new_id
+from app.core.idempotency import creation_id
 from app.core.pagination import InvalidCursorError, as_datetime, decode_cursor, paginate  # noqa: F401
 from app.repositories.ride_repo import RideRepository, StationNotFoundError
 from app.schemas.ride import (
@@ -22,11 +22,11 @@ class RideService:
     def __init__(self, rides: RideRepository):
         self._rides = rides
 
-    def offer(self, driver_id: int, request: OfferRideRequest) -> dict:
-        if request.departure_time <= datetime.now(timezone.utc):
+    def offer(self, driver_id: int, request: OfferRideRequest, idempotency_key: str | None = None) -> dict:
+        if not idempotency_key and request.departure_time <= datetime.now(timezone.utc):
             raise DepartureInPastError
         params = request.model_dump()
-        params.update(id_ride=new_id(), id_driver=driver_id)
+        params.update(id_ride=creation_id(driver_id, "offer", idempotency_key), id_driver=driver_id)
         # DATETIME(3) stores naive UTC, while the public API requires timezones.
         for field in ("departure_time", "estimated_arrival_time"):
             if params[field] is not None:

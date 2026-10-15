@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Redirect, Stack } from 'expo-router';
 import { View, useWindowDimensions } from 'react-native';
 import { AppHeader } from '../../components/AppHeader';
 import { DrawerSidebar, PermanentSidebar } from '../../components/Sidebar';
 import { Colors } from '../../constants/Colors';
 import { getSession } from '../../services/session';
+import { fetchMyProfile } from '../../services/profile';
 
 const WIDE_SCREEN = 1024;
 
@@ -13,6 +14,7 @@ export default function AppLayout() {
     const { width } = useWindowDimensions();
     const [menuOpen, setMenuOpen] = useState(false);
     const wide = width >= WIDE_SCREEN;
+    useEffect(() => { if (getSession()) void fetchMyProfile().catch(() => undefined); }, []);
 
     if (!getSession()) return <Redirect href="/login" />;
 

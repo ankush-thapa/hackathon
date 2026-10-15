@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 
+from app.api.deps import get_current_user_id
 from app.core.config import settings
 from app.schemas.media import MediaUploadResponse
 from app.services.media_service import FileTooLargeError, MediaService, UnsupportedMediaError
@@ -16,7 +17,7 @@ def get_media_service() -> MediaService:
 
 
 @router.post("/upload", response_model=MediaUploadResponse, status_code=status.HTTP_201_CREATED)
-def upload_media(request: Request, file: UploadFile, service: MediaService = Depends(get_media_service)):
+def upload_media(request: Request, file: UploadFile, current_user_id: int = Depends(get_current_user_id), service: MediaService = Depends(get_media_service)):
     """Store an image (JPEG, PNG or WebP, up to 5 MB) in the media folder and return its public URL."""
     try:
         saved = service.save_image(file.file)

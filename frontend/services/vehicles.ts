@@ -148,33 +148,14 @@ export async function addVehicle(input: NewVehicle): Promise<Vehicle> {
         vehicle_type: input.vehicleType ?? DEFAULT_VEHICLE_TYPE,
     };
 
-    let res: Response;
+    let data: VehicleResponse;
     try {
-        res = await fetch(`${API_URL}/v1/vehicles`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', ...authHeader() },
-            body: JSON.stringify(payload),
-        });
-    } catch {
-        throw new VehicleError(`Could not reach the server at ${API_URL}`);
+        data = await request<VehicleResponse>('/v1/vehicles', { method: 'POST', body: JSON.stringify(payload) });
+    } catch (e) {
+        if (e instanceof ApiError) throw new VehicleError(e.message, undefined, e.status === 401);
+        throw e;
     }
-    const data = await res.json().catch(() => ({}));
-
-    if (res.status === 401) {
-        clearSession();
-        throw new VehicleError('Your session has expired. Please log in again.', undefined, true);
-    }
-    if (res.status === 409) throw new VehicleError('This vehicle is already registered.', 'registrationNumber');
-    if (res.status === 422) {
-        // { detail: [{ loc: ['body', 'registration_number'], msg: '...' }] }
-        const first = Array.isArray(data?.detail) ? data.detail[0] : undefined;
-        const field = API_FIELDS[first?.loc?.[first.loc.length - 1]];
-        const msg = String(first?.msg ?? '').replace(/^Value error, /, '');
-        throw new VehicleError(msg || 'Some details look invalid. Please check and try again.', field);
-    }
-    if (!res.ok) throw new VehicleError('Something went wrong. Please try again.');
-
-    const vehicle = fromApi(data as VehicleResponse);
+    const vehicle = fromApi(data);
     store.set(list => [...(vehicle.isDefault ? list.map(v => ({ ...v, isDefault: false })) : list), vehicle]);
     return vehicle;
 }
@@ -197,13 +178,10 @@ export async function fetchMyVehicles(): Promise<Vehicle[]> {
     return list;
 }
 
-/** Local only for now (no delete API yet). */
-export function removeVehicle(id: string) {
-    store.set(list => {
-        const rest = list.filter(v => v.id !== id);
-        if (rest.length && !rest.some(v => v.isDefault)) rest[0] = { ...rest[0], isDefault: true };
-        return rest;
-    });
+/** Delete on the server before updating the local list. */
+export async function removeVehicle(id: string) {
+    await request<void>(`/v1/vehicles/${id}`, { method: 'DELETE' });
+    store.set(list => list.filter(v => v.id !== id));
 }
 
 export const vehicleLabel = (v: Pick<Vehicle, 'make' | 'model'>) => `${v.make} ${v.model}`;

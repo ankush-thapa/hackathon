@@ -33,6 +33,14 @@ class NotificationRepository:
     def __init__(self, db: Session):
         self._db = db
 
+    def event_state(self, ride_id: int, booking_id: int | None) -> dict | None:
+        row = self._db.execute(text(
+            "SELECT r.id_driver, r.status AS ride_status, b.id_rider, b.status AS booking_status "
+            "FROM ride r LEFT JOIN ride_booking b ON b.id_ride = r.id_ride AND b.id_booking = :booking "
+            "WHERE r.id_ride = :ride"
+        ), {"ride": ride_id, "booking": booking_id}).mappings().first()
+        return dict(row) if row else None
+
     def add(self, params: dict) -> None:
         """Insert without committing, so the notification lands in the caller's transaction."""
         self._db.execute(_INSERT, params)

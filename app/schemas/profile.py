@@ -6,13 +6,19 @@ from app.models.user_profile import Gender
 
 
 class SaveProfileRequest(BaseModel):
-    # TODO: drop userId and take it from the access token once login exists.
-    userId: int = Field(gt=0, examples=[236357292134498304])
+    userId: int | None = Field(default=None, gt=0, le=2**64-1, description="Optional legacy field; must match the logged-in user.", examples=[236357292134498304])
     fullName: str = Field(min_length=1, max_length=100, examples=["Jane Doe"])
     photoUrl: str | None = Field(default=None, max_length=500)
     about: str | None = Field(default=None, max_length=500)
     dateOfBirth: date | None = Field(default=None, examples=["1995-04-12"])
     gender: Gender | None = None
+
+    @field_validator("userId", mode="before")
+    @classmethod
+    def reject_boolean_id(cls, value):
+        if isinstance(value, bool):
+            raise ValueError("userId must be a positive integer")
+        return value
 
     @field_validator("fullName")
     @classmethod

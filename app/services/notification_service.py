@@ -1,4 +1,5 @@
 from app.core.ids import new_id
+from fastapi import HTTPException
 from app.models.notification import NotificationType
 from app.repositories.notification_repo import NotificationRepository
 from app.schemas.notification import NotificationItem, NotificationListResponse, SendNotificationRequest
@@ -32,6 +33,7 @@ def _item(r: dict) -> NotificationItem:
         idBooking=r["id_booking"],
         message=r["message"],
         createdAt=r["created_at"],
+        read=bool(r.get("is_read", False)),
     )
 
 
@@ -75,6 +77,28 @@ class NotificationService:
             raise NotRideParticipantError("idUser")
         if req.idBooking is not None and not self._repo.booking_on_ride(req.idBooking, req.idRide):
             raise BookingNotOnRideError
+        event = self._repo.event_state(req.idRide, req.idBooking)
+        kind = req.type.value
+        if kind.startswith("booking_"):
+            if event is None or event["booking_status"] is None:
+                raise HTTPException(422, "idBooking is required for booking notifications")
+            driver, rider = event["id_driver"], event["id_rider"]
+            expected = {
+                "booking_requested": ({"requested"}, rider, driver),
+                "booking_accepted": ({"accepted"}, driver, rider),
+                "booking_rejected": ({"rejected"}, driver, rider),
+            }
+            if kind in expected:
+                states, sender, recipient = expected[kind]
+                if event["booking_status"] not in states or (id_sender, req.idUser) != (sender, recipient):
+                    raise HTTPException(403, "notification does not match booking state or actor")
+            elif kind == "booking_cancelled":
+                status = event["booking_status"]
+                sender, recipient = (rider, driver) if status == "cancelled_by_rider" else (driver, rider)
+                if status not in ("cancelled_by_rider", "cancelled_by_driver") or (id_sender, req.idUser) != (sender, recipient):
+                    raise HTTPException(403, "notification does not match cancellation")
+        elif id_sender != event["id_driver"] or (kind == "ride_cancelled" and event["ride_status"] != "cancelled"):
+            raise HTTPException(403, "only the driver can send matching ride events")
         id_notification = self.notify(req.idUser, req.type, req.idRide, req.message, id_booking=req.idBooking)
         self._repo.commit()
         return _item(self._repo.get(id_notification))

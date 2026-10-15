@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from app.core.ids import new_id
+from app.core.idempotency import creation_id
 from app.repositories.booking_repo import BookingRepository
 from app.schemas.booking import BookRideRequest
 
@@ -13,11 +13,11 @@ class BookingService:
     def __init__(self, bookings: BookingRepository):
         self._bookings = bookings
 
-    def book(self, rider_id: int, request: BookRideRequest) -> dict:
+    def book(self, rider_id: int, request: BookRideRequest, idempotency_key: str | None = None) -> dict:
         """Create a `requested` booking. Seats are held only once the driver accepts."""
         return self._bookings.create(
             {
-                "id_booking": new_id(),
+                "id_booking": creation_id(rider_id, "booking", idempotency_key),
                 "id_ride": request.id_ride,
                 "id_rider": rider_id,
                 "seats": request.seats,
