@@ -24,6 +24,9 @@ from app.db.session import Base, get_db
 from app.main import app
 from app.models import DocType, Gender, User, UserDocument, UserProfile, Vehicle
 
+# Tables created by migrations after the original main-branch schema.
+POST_MAIN_TABLES = {"vehicle", "user_session", "station", "ride", "ride_booking"}
+
 
 @pytest.fixture
 def mysql_database(monkeypatch):
@@ -69,7 +72,7 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
             connection.exec_driver_sql("INSERT INTO user (id, name) VALUES (1, 'Alice')")
     elif baseline == "main_schema":
         for table in Base.metadata.sorted_tables:
-            if table.name != "vehicle":
+            if table.name not in POST_MAIN_TABLES:
                 table.create(engine)
         with engine.begin() as connection:
             connection.exec_driver_sql(
@@ -82,7 +85,7 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
     with engine.connect() as connection:
         migration_context = MigrationContext.configure(connection, opts={"compare_type": True})
         assert compare_metadata(migration_context, Base.metadata) == []
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0003_optional_user_name"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_ride_schema"
         if baseline == "legacy":
             row = connection.execute(text(
                 "SELECT u.id_user, u.user_name, u.status, p.full_name "
@@ -177,6 +180,46 @@ def test_mysql_model_relationships_and_constraints(mysql_database):
         connection.exec_driver_sql("UPDATE vehicle SET updated_at = '2000-01-01' WHERE id_vehicle = 300")
         connection.exec_driver_sql("UPDATE vehicle SET color = 'Red' WHERE id_vehicle = 300")
         assert connection.execute(text("SELECT YEAR(updated_at) FROM vehicle WHERE id_vehicle = 300")).scalar_one() > 2000
+
+
+def test_mysql_ride_constraints(mysql_database):
+    engine, config = mysql_database
+    command.upgrade(config, "head")
+    ride = text(
+        "INSERT INTO ride (id_ride, id_driver, id_vehicle, id_source_station, id_destination_station, "
+        "departure_time, total_seats, available_seats, price_per_seat) VALUES (:id_ride, 1, 1, :src, :dst, "
+        "'2030-01-01 08:00:00', :total, :available, :price)"
+    )
+    booking = text(
+        "INSERT INTO ride_booking (id_booking, id_ride, id_rider, id_driver, price_per_seat, total_amount, status) "
+        "VALUES (:id_booking, :id_ride, 2, 1, 10, :amount, :status)"
+    )
+    ok_ride = {"id_ride": 10, "src": 1, "dst": 2, "total": 4, "available": 4, "price": 10}
+    ok_booking = {"id_booking": 20, "id_ride": 10, "amount": 10, "status": "requested"}
+    with engine.begin() as connection:
+        connection.exec_driver_sql("INSERT INTO station (station_name) VALUES ('North'), ('South')")
+        connection.execute(ride, ok_ride)
+        connection.execute(booking, ok_booking)
+        row = connection.execute(text("SELECT status, version, price_per_seat FROM ride")).one()
+        assert (row.status, row.version, str(row.price_per_seat)) == ("open", 1, "10.00")
+        assert connection.execute(text("SELECT active_flag FROM ride_booking")).scalar_one() == 1
+
+    def rejects(statement, values, error_code):
+        with pytest.raises(DBAPIError) as error:
+            with engine.begin() as connection:
+                connection.execute(statement, values)
+        assert error.value.orig.errno == error_code
+
+    for changes in ({"dst": 1}, {"total": 0}, {"total": 9, "available": 9}, {"available": 5}, {"price": -1}):
+        rejects(ride, ok_ride | changes | {"id_ride": 11}, 3819)
+    rejects(ride, ok_ride | {"id_ride": 11, "dst": 99}, 1452)
+    rejects(booking, ok_booking | {"id_booking": 21}, 1062)  # second active booking for the same rider
+    rejects(booking, ok_booking | {"id_booking": 21, "amount": -1, "status": "rejected"}, 3819)
+    rejects(booking, ok_booking | {"id_booking": 21, "id_ride": 404}, 1452)
+    with engine.begin() as connection:
+        connection.exec_driver_sql("UPDATE ride_booking SET status = 'cancelled_by_rider' WHERE id_booking = 20")
+        assert connection.execute(text("SELECT active_flag FROM ride_booking")).scalar_one() is None
+        connection.execute(booking, ok_booking | {"id_booking": 21})  # rebooking after cancelling is allowed
 
 
 def test_mysql_startup_seeding_uses_migrated_models(mysql_database, monkeypatch):
