@@ -9,7 +9,7 @@ type Item = { label: string; href: Href; path: string; child?: boolean };
 
 export const NAV_ITEMS: Item[] = [
     { label: 'Dashboard', href: '/dashboard', path: '/dashboard' },
-    { label: 'My Rides', href: '/rides', path: '/rides' },
+    { label: 'My Rides', href: '/my-rides', path: '/my-rides' },
     { label: 'My Vehicles', href: '/vehicles', path: '/vehicles' },
     { label: 'Add a vehicle', href: '/vehicles/add', path: '/vehicles/add', child: true },
     { label: 'Request a ride', href: '/request-ride', path: '/request-ride' },
@@ -90,7 +90,7 @@ export const DrawerSidebar = ({ open, onClose }: { open: boolean; onClose: () =>
     if (!mounted) return null;
 
     return (
-        <View style={StyleSheet.absoluteFill} pointerEvents={open ? 'auto' : 'none'}>
+        <View style={[StyleSheet.absoluteFill, { zIndex: 100, elevation: 100 }]} pointerEvents={open ? 'auto' : 'none'}>
             <Animated.View style={[StyleSheet.absoluteFill, styles.backdrop, { opacity: progress }]}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityLabel="Close menu" />
             </Animated.View>

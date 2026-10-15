@@ -1,11 +1,18 @@
+from datetime import datetime
+from decimal import Decimal
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.core.ids import new_id
 from app.db.session import Base
-from app.models import DocType, Gender, User, UserDocument, UserProfile, UserStatus
+from app.models import (
+    BookingStatus, DocType, Gender, Ride, RideBooking, RideStatus, Station, User, UserDocument, UserProfile,
+    UserStatus,
+)
 
 
 @pytest.fixture
@@ -60,6 +67,84 @@ def test_profile_and_documents_relationships(db):
     assert u.profile.full_name == "Jane Doe"
     assert u.documents[0].is_active is True
     assert u.documents[0].user is u
+
+
+
+def make_ride(db, **kw):
+    src, dst = Station(station_name="North"), Station(station_name="South")
+    db.add_all([src, dst])
+    db.flush()
+    values = {"id_driver": 1, "id_vehicle": 1, "departure_time": datetime(2030, 1, 1, 8),
+              "total_seats": 4, "available_seats": 4, "source_station": src, "destination_station": dst}
+    ride = Ride(id_ride=new_id(), **(values | kw))
+    db.add(ride)
+    return ride
+
+
+def make_booking(ride, **kw):
+    values = {"id_rider": 2, "id_driver": ride.id_driver, "price_per_seat": Decimal("10.00"),
+              "total_amount": Decimal("10.00")}
+    return RideBooking(id_booking=new_id(), ride=ride, **(values | kw))
+
+
+def test_ride_and_booking_defaults(db):
+    ride = make_ride(db)
+    ride.bookings.append(make_booking(ride))
+    db.commit()
+    db.refresh(ride)
+    assert ride.status is RideStatus.open and ride.version == 1
+    assert ride.price_per_seat == Decimal("0.00")
+    assert ride.source_station.station_name == "North" and ride.source_station.is_active is True
+    booking = ride.bookings[0]
+    db.refresh(booking)
+    assert booking.status is BookingStatus.requested and booking.seats_booked == 1
+    assert booking.active_flag == 1 and booking.ride is ride
+
+
+def test_one_active_booking_per_rider_per_ride(db):
+    ride = make_ride(db)
+    first = make_booking(ride)
+    db.add(first)
+    db.commit()
+    db.add(make_booking(ride))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()
+    first.status = BookingStatus.cancelled_by_rider
+    db.commit()
+    db.refresh(first)
+    assert first.active_flag is None and first.version == 2
+    db.add(make_booking(ride))
+    db.commit()
+
+
+@pytest.mark.parametrize("kw", [
+    {"total_seats": 0, "available_seats": 0},
+    {"total_seats": 9, "available_seats": 9},
+    {"available_seats": 5},
+    {"price_per_seat": Decimal("-1")},
+])
+def test_ride_check_constraints(db, kw):
+    make_ride(db, **kw)
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_ride_requires_different_stations(db):
+    ride = make_ride(db)
+    ride.destination_station = ride.source_station
+    with pytest.raises(IntegrityError):
+        db.commit()
+
+
+def test_ride_version_detects_concurrent_update(db):
+    ride = make_ride(db)
+    db.commit()
+    assert ride.version == 1  # loads the row, as a read-then-write request would
+    db.execute(Ride.__table__.update().values(version=Ride.version + 1))  # another writer
+    ride.available_seats = 3
+    with pytest.raises(StaleDataError):
+        db.commit()
 
 
 def test_snowflake_ids_unique_and_increasing():

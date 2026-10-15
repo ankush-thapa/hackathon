@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import os
+import secrets
 from datetime import datetime
 
 import jwt
@@ -48,3 +49,22 @@ def create_access_token(user_id: int, session_id: int, issued_at: datetime, expi
 def decode_access_token(token: str) -> dict:
     """Raises jwt.InvalidTokenError (incl. ExpiredSignatureError) on a bad or expired token."""
     return jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"], options={"require": ["exp", "sub", "sid"]})
+
+
+def new_refresh_token(session_id: int) -> tuple[str, str]:
+    """Return (token for the client, sha256 hex to store). The session id prefix makes lookup a primary-key read."""
+    secret = secrets.token_urlsafe(32)
+    return f"{session_id}.{secret}", hash_refresh_secret(secret)
+
+
+def parse_refresh_token(token: str) -> tuple[int, str] | None:
+    """Split a refresh token into (session id, secret hash), or None if it is malformed."""
+    session_part, _, secret = token.partition(".")
+    if not session_part.isdigit() or not secret:
+        return None
+    return int(session_part), hash_refresh_secret(secret)
+
+
+def hash_refresh_secret(secret: str) -> str:
+    # The secret is 256 random bits, so a fast hash is enough; it only keeps DB readers from using it.
+    return hashlib.sha256(secret.encode()).hexdigest()

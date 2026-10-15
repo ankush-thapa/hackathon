@@ -6,10 +6,13 @@ from sqlalchemy.orm import Session
 
 
 @dataclass(frozen=True)
-class ActiveSession:
+class SessionState:
     id_session: int
     id_user: int
     user_status: str
+    expires_at: datetime
+    revoked_at: datetime | None
+    refresh_token_hash: str | None
 
 
 @dataclass(frozen=True)
@@ -22,20 +25,26 @@ class SessionRow:
 
 
 _INSERT_SESSION = text(
-    "INSERT INTO user_session (id_session, id_user, user_agent, ip_address, expires_at, created_at) "
-    "VALUES (:id_session, :id_user, :user_agent, :ip_address, :expires_at, :created_at)"
+    "INSERT INTO user_session "
+    "(id_session, id_user, user_agent, ip_address, expires_at, created_at, refresh_token_hash) "
+    "VALUES (:id_session, :id_user, :user_agent, :ip_address, :expires_at, :created_at, :refresh_token_hash)"
 )
-_GET_ACTIVE = text(
-    "SELECT s.id_session, s.id_user, u.status FROM user_session s JOIN `user` u ON u.id_user = s.id_user "
-    "WHERE s.id_session = :id_session AND s.revoked_at IS NULL AND s.expires_at > :now"
-)
+# Typed columns so SQLite returns datetimes, not strings.
+_GET_STATE = text(
+    "SELECT s.id_session, s.id_user, u.status, s.expires_at, s.revoked_at, s.refresh_token_hash "
+    "FROM user_session s JOIN `user` u ON u.id_user = s.id_user WHERE s.id_session = :id_session"
+).columns(expires_at=DateTime, revoked_at=DateTime)
 _LIST_ACTIVE = text(
     "SELECT id_session, user_agent, ip_address, created_at, expires_at FROM user_session "
     "WHERE id_user = :id_user AND revoked_at IS NULL AND expires_at > :now ORDER BY created_at DESC, id_session DESC"
-).columns(created_at=DateTime, expires_at=DateTime)  # typed so SQLite returns datetimes, not strings
+).columns(created_at=DateTime, expires_at=DateTime)
 _REVOKE = text(
     "UPDATE user_session SET revoked_at = :now "
     "WHERE id_session = :id_session AND id_user = :id_user AND revoked_at IS NULL AND expires_at > :now"
+)
+_ROTATE_REFRESH = text(
+    "UPDATE user_session SET refresh_token_hash = :new_hash "
+    "WHERE id_session = :id_session AND refresh_token_hash = :old_hash AND revoked_at IS NULL AND expires_at > :now"
 )
 
 
@@ -47,20 +56,25 @@ class SessionRepository:
 
     def create(
         self, id_session: int, id_user: int, user_agent: str | None, ip_address: str | None,
-        created_at: datetime, expires_at: datetime,
+        created_at: datetime, expires_at: datetime, refresh_token_hash: str,
     ) -> None:
         self._db.execute(
             _INSERT_SESSION,
             {
                 "id_session": id_session, "id_user": id_user, "user_agent": user_agent,
                 "ip_address": ip_address, "created_at": created_at, "expires_at": expires_at,
+                "refresh_token_hash": refresh_token_hash,
             },
         )
         self._db.commit()
 
-    def get_active(self, id_session: int, now: datetime) -> ActiveSession | None:
-        row = self._db.execute(_GET_ACTIVE, {"id_session": id_session, "now": now}).first()
-        return ActiveSession(row.id_session, row.id_user, row.status) if row else None
+    def get_state(self, id_session: int) -> SessionState | None:
+        row = self._db.execute(_GET_STATE, {"id_session": id_session}).first()
+        if row is None:
+            return None
+        return SessionState(
+            row.id_session, row.id_user, row.status, row.expires_at, row.revoked_at, row.refresh_token_hash
+        )
 
     def list_active(self, id_user: int, now: datetime) -> list[SessionRow]:
         rows = self._db.execute(_LIST_ACTIVE, {"id_user": id_user, "now": now})
@@ -71,3 +85,10 @@ class SessionRepository:
         revoked = self._db.execute(_REVOKE, {"id_session": id_session, "id_user": id_user, "now": now}).rowcount
         self._db.commit()
         return revoked == 1
+
+    def rotate_refresh(self, id_session: int, old_hash: str, new_hash: str, now: datetime) -> bool:
+        """Swap the refresh hash only if `old_hash` is still current, so a token can be used once."""
+        params = {"id_session": id_session, "old_hash": old_hash, "new_hash": new_hash, "now": now}
+        rotated = self._db.execute(_ROTATE_REFRESH, params).rowcount
+        self._db.commit()
+        return rotated == 1
