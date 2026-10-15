@@ -1,7 +1,38 @@
 #!/usr/bin/env bash
-# Starts MySQL (docker), the FastAPI backend and the Expo frontend. Ctrl+C stops both.
+# Starts MySQL (docker), the FastAPI backend and the Expo frontend. Ctrl+C stops everything.
+#   ./start_app                 backend + frontend
+#   ./start_app --backend-only  backend only (API at http://localhost:8000/docs)
 set -euo pipefail
 cd "$(dirname "$0")"
+PROJECT_DIR="$(pwd)"
+API_PORT=8000
+
+backend_only=false
+case "${1:-}" in
+    --backend-only) backend_only=true ;;
+    "") ;;
+    *) echo "usage: $0 [--backend-only]" >&2; exit 2 ;;
+esac
+
+# Stop servers left running by an earlier start_app of this project (they hold the ports).
+stop_stale() {
+    local pattern=$1 pids
+    pids=$(pgrep -f "$pattern" || true)
+    for pid in $pids; do
+        if [ "$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')" = "$PROJECT_DIR${2:-}" ]; then
+            echo "Stopping leftover process $pid ($pattern)"
+            kill "$pid" 2>/dev/null || true
+        fi
+    done
+}
+stop_stale "uvicorn app.main:app"
+stop_stale "expo start" "/frontend"
+sleep 1
+if lsof -nP -iTCP:"$API_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "Port $API_PORT is in use by another program:" >&2
+    lsof -nP -iTCP:"$API_PORT" -sTCP:LISTEN >&2
+    exit 1
+fi
 
 if [ ! -x venv/bin/python ]; then
     echo "Setting up Python venv..."
@@ -9,7 +40,10 @@ if [ ! -x venv/bin/python ]; then
 fi
 echo "Checking Python dependencies..."
 venv/bin/python -m pip install -q -r requirements.txt
-if [ ! -d frontend/node_modules ]; then
+# Reinstall when package.json or the lockfile changed since the last install (e.g. after a pull).
+installed=frontend/node_modules/.package-lock.json
+if ! $backend_only && { [ ! -f "$installed" ] || [ frontend/package.json -nt "$installed" ] \
+        || { [ -f frontend/package-lock.json ] && [ frontend/package-lock.json -nt "$installed" ]; }; }; then
     echo "Installing frontend dependencies..."
     npm --prefix frontend install
 fi
@@ -27,9 +61,23 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "Starting backend on http://localhost:8000"
-venv/bin/uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 &
+echo "Starting backend on http://localhost:$API_PORT"
+# Watch only app/: watching node_modules and venv makes the reloader spin.
+venv/bin/uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port "$API_PORT" &
 api_pid=$!
 
-# Frontend runs in the foreground so Expo's keys work: w = web, i = iOS, a = Android.
-npm --prefix frontend start
+until curl -s -o /dev/null "http://localhost:$API_PORT/"; do
+    if ! kill -0 "$api_pid" 2>/dev/null; then
+        echo "Backend failed to start; see the error above." >&2
+        exit 1
+    fi
+    sleep 1
+done
+echo "Backend ready: http://localhost:$API_PORT/docs"
+
+if $backend_only; then
+    wait "$api_pid"  # keep running until Ctrl+C
+else
+    # Frontend runs in the foreground so Expo's keys work: w = web, i = iOS, a = Android.
+    npm --prefix frontend start
+fi
