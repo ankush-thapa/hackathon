@@ -37,7 +37,11 @@ def notify_event(notifications: NotificationService, ctx: dict) -> None:
     elif event == "booking_accepted":
         send(ctx["id_rider"], NotificationType.booking_accepted, f"{driver} approved your request for {_seats(ctx['seats'])} on the {ride}.")
     elif event == "booking_rejected":
-        send(ctx["id_rider"], NotificationType.booking_rejected, f"{driver} declined your request for {_seats(ctx['seats'])} on the {ride}.{_reason(ctx)}")
+        if ctx.get("automatic"):
+            send(ctx["id_rider"], NotificationType.booking_rejected,
+                 f"Your request for {_seats(ctx['seats'])} on the {ride} was rejected because the ride is now full.")
+        else:
+            send(ctx["id_rider"], NotificationType.booking_rejected, f"{driver} declined your request for {_seats(ctx['seats'])} on the {ride}.{_reason(ctx)}")
     elif event == "booking_cancelled":
         if ctx["actor"] == "rider":  # the driver is told
             send(ctx["id_driver"], NotificationType.booking_cancelled, f"{rider} cancelled their booking of {_seats(ctx['seats'])} on your {ride}.{_reason(ctx)}")

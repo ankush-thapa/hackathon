@@ -97,6 +97,10 @@ _REJECT_BOOKING = text(
     "UPDATE ride_booking SET status = 'rejected', reject_reason = :reason, responded_at = :now, version = version + 1 "
     "WHERE id_booking = :id_booking AND status = 'requested'"
 ).bindparams(bindparam("now", type_=DateTime3))
+_PENDING_FOR_RIDE = (
+    "SELECT id_booking, id_rider, seats_booked FROM ride_booking "
+    "WHERE id_ride = :id_ride AND status = 'requested' ORDER BY id_booking"
+)
 _BOOKING_RIDE_ID = text("SELECT id_ride FROM ride_booking WHERE id_booking = :id_booking")
 _LOCK_RIDE = (
     "SELECT id_ride, id_driver, status, total_seats, available_seats, departure_time FROM ride "
@@ -216,6 +220,16 @@ class BookingRepository:
     def _read(self, id_booking: int) -> dict:
         return dict(self._db.execute(_SELECT_BOOKING, {"id_booking": id_booking}).mappings().one())
 
+    def _reject_pending_when_full(self, id_ride: int, now, emit) -> None:
+        """Caller holds the ride lock. Rejections and notifications share approval's transaction."""
+        lock = " FOR UPDATE" if self._db.get_bind().dialect.name == "mysql" else ""
+        pending = list(self._db.execute(text(_PENDING_FOR_RIDE + lock), {"id_ride": id_ride}))
+        reason = "Ride is full; the last available seats were accepted by another rider"
+        for other in pending:
+            self._db.execute(_REJECT_BOOKING, {"id_booking": other.id_booking, "reason": reason, "now": now})
+            self._emit(emit, "booking_rejected", id_ride, other.id_booking, other.id_rider,
+                       seats=other.seats_booked, reason=reason, automatic=True)
+
     @retry_lock_conflicts
     def approve(self, *, id_booking: int, driver_id: int, now, emit: Callable[[dict], None] | None = None) -> dict:
         """Driver accepts a `requested` booking and the seats are taken from the ride, in one transaction."""
@@ -232,6 +246,8 @@ class BookingRepository:
             remaining = ride.available_seats - booking.seats_booked
             self._set_ride_seats(ride, remaining, "full" if remaining == 0 else ride.status)
             self._db.execute(_APPROVE_BOOKING, {"id_booking": id_booking, "now": now})
+            if remaining == 0:
+                self._reject_pending_when_full(ride.id_ride, now, emit)
             result = self._read(id_booking)
             self._emit(emit, "booking_accepted", ride.id_ride, id_booking, booking.id_rider, seats=booking.seats_booked)
             self._db.commit()

@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.types import DateTime3, UnsignedBigInt, UnsignedInt, UnsignedTinyInt
+from app.repositories.ride_schedule import lock_driver, ensure_departure_gap
 
 
 class VehicleNotFoundError(Exception):
@@ -104,6 +105,7 @@ class RideRepository:
         # valid until the offer is committed. SQLite is used by the API tests.
         lock = " FOR UPDATE" if self._db.get_bind().dialect.name == "mysql" else ""
         try:
+            lock_driver(self._db, params["id_driver"])
             vehicle = self._db.execute(text(_VEHICLE_SQL + lock), params).first()
             if vehicle is None:
                 raise VehicleNotFoundError
@@ -131,6 +133,7 @@ class RideRepository:
             if params["departure_time"] <= datetime.now(timezone.utc).replace(tzinfo=None):
                 from app.services.ride_service import DepartureInPastError
                 raise DepartureInPastError
+            ensure_departure_gap(self._db, params["id_driver"], params["departure_time"], params["id_ride"])
             self._db.execute(_INSERT_RIDE, params)
             ride = dict(self._db.execute(_SELECT_RIDE, {"id_ride": params["id_ride"]}).mappings().one())
             if emit is not None:  # inside the open transaction: the notification commits or rolls back with the ride

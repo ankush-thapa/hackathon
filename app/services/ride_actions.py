@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Ride, RideStatus, RideBooking, BookingStatus, Vehicle, Station, UserProfile
 from app.models.notification import NotificationType
+from app.repositories.ride_schedule import lock_driver, ensure_departure_gap
 from app.repositories.notification_repo import NotificationRepository
 from app.schemas.ride import OfferRideRequest
 from app.services.notification_service import NotificationService
@@ -85,6 +86,7 @@ class RideActions:
     @retry_lock_conflicts
     def update(self, ride_id, user_id, request):
         try:
+            lock_driver(self.db, user_id)
             ride = self.ride(ride_id, user_id, owner=True)
             if ride.status not in (RideStatus.open, RideStatus.full) or ride.departure_time <= now():
                 raise HTTPException(409, "only future open/full rides can be edited")
@@ -102,6 +104,8 @@ class RideActions:
             validated = OfferRideRequest.model_validate({**values, **changes})
             if validated.departure_time.replace(tzinfo=None) <= now():
                 raise HTTPException(422, "departure_time must be in the future")
+            if "departure_time" in changes:
+                ensure_departure_gap(self.db, user_id, validated.departure_time.replace(tzinfo=None), ride_id)
             vehicle = self.db.scalar(select(Vehicle).where(Vehicle.id_vehicle == validated.id_vehicle).with_for_update())
             if vehicle is None or vehicle.id_user != user_id or vehicle.status != "active":
                 raise HTTPException(422, "vehicle must be active and owned by the driver")

@@ -8,6 +8,7 @@ import { CURRENCY } from '../../../constants/Currency';
 import { dayLabel, timeLabel } from '../../../services/format';
 import { MyRide, MyRidesError, RideStatus, cachedMyRide, findMyRide, money, vehicleText } from '../../../services/myRides';
 import { RideRequest, fetchPendingRequests } from '../../../services/rideRequests';
+import { useForegroundRefresh } from '../../../services/useForegroundRefresh';
 
 const theme = Colors.light;
 
@@ -59,6 +60,7 @@ export default function RideDetailScreen() {
     }, [id, onAuthError]);
 
     useEffect(() => { load(); }, [load]);
+    useForegroundRefresh(load, !loading);
 
     const back = () => (router.canGoBack() ? router.back() : router.replace('/my-rides'));
 

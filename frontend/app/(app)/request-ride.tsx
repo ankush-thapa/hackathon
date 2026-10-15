@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { PrimaryButton } from '../../components/PrimaryButton';
@@ -18,9 +18,11 @@ import {
     hasMore,
     searchMore,
     searchRides,
+    refreshAvailability,
 } from '../../services/rideSearch';
 import { useProfile } from '../../services/profile';
 import { getSession } from '../../services/session';
+import { useForegroundRefresh } from '../../services/useForegroundRefresh';
 
 const theme = Colors.light;
 const DAYS = nextDays(7);
@@ -98,6 +100,24 @@ export default function RequestRideScreen() {
         }
     };
 
+    const current = useRef({ query, results, searching, loadingMore });
+    current.current = { query, results, searching, loadingMore };
+    const recheckAvailability = async () => {
+        const snapshot = current.current;
+        if (!snapshot.query || !snapshot.results || snapshot.searching || snapshot.loadingMore) return;
+        try {
+            const refreshed = await refreshAvailability(snapshot.results, snapshot.query.params.seats);
+            if (current.current.query === snapshot.query && !current.current.loadingMore) {
+                const checked = new Set(snapshot.results.rides.map(r => r.idRide));
+                const fresh = new Map(refreshed.rides.map(r => [r.idRide, r]));
+                setResults(previous => previous ? { ...previous, rides: previous.rides
+                    .filter(r => !checked.has(r.idRide) || fresh.has(r.idRide))
+                    .map(r => fresh.get(r.idRide) ?? r) } : previous);
+            }
+        } catch (e) { handleAuth(e); }
+    };
+    useForegroundRefresh(recheckAvailability, query !== null);
+
     if (!stations) {
         return (
             <Screen title="Request a ride" subtitle="Find a colleague going your way.">
@@ -171,7 +191,7 @@ export default function RequestRideScreen() {
                     ) : results ? (
                         <>
                             {results.rides.map(r => (
-                                <ResultCard key={r.idRide} ride={r} seats={query.params.seats} onAuthError={handleAuth} />
+                                <ResultCard key={r.idRide} ride={r} seats={query.params.seats} onAuthError={handleAuth} onAvailabilityChanged={recheckAvailability} />
                             ))}
                             {searchError ? <Text style={[styles.error, { textAlign: 'center' }]}>{searchError}</Text> : null}
                             {hasMore(results) ? (
@@ -240,7 +260,7 @@ function StationPicker({ label, value, onChange, stations, exclude }: {
     );
 }
 
-function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: number; onAuthError: (e: unknown) => void }) {
+function ResultCard({ ride, seats, onAuthError, onAvailabilityChanged }: { ride: SearchRide; seats: number; onAuthError: (e: unknown) => void; onAvailabilityChanged: () => Promise<void> }) {
     const router = useRouter();
     const profile = useProfile();
     const [step, setStep] = useState<'idle' | 'confirm' | 'done'>('idle');
@@ -261,6 +281,7 @@ function ResultCard({ ride, seats, onAuthError }: { ride: SearchRide; seats: num
         } catch (e) {
             onAuthError(e);
             setError(e instanceof RideSearchError ? e.message : 'Could not send your request. Please try again.');
+            if (e instanceof RideSearchError && e.status === 409) await onAvailabilityChanged();
         } finally {
             setBusy(false);
         }
