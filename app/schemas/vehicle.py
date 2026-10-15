@@ -1,63 +1,86 @@
+import enum
 import re
-from typing import Literal
+from datetime import datetime
+from typing import Annotated
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
-VehicleType = Literal["car", "hatchback", "sedan", "suv", "bike"]
 
-MIN_SEATS, MAX_SEATS = 1, 8  # matches chk_vehicle_seat_capacity
+class VehicleType(str, enum.Enum):
+    car = "car"
+    hatchback = "hatchback"
+    sedan = "sedan"
+    suv = "suv"
+    bike = "bike"
 
-# Indian registration numbers, compared without spaces/hyphens:
-#   standard  MH12AB1234, DL3CAB1234, KA051234  (state, district [+letter], 0–3 series letters, 4 digits)
-#   BH series 22BH1234AA
+
+class VehicleStatus(str, enum.Enum):
+    """Settable statuses. Deleted vehicles are hidden by the API."""
+    active = "active"
+    inactive = "inactive"
+
+
 _STANDARD_REG = re.compile(r"^[A-Z]{2}[0-9]{1,2}[A-Z]{0,4}[0-9]{4}$")
 _BH_REG = re.compile(r"^[0-9]{2}BH[0-9]{4}[A-Z]{1,2}$")
+_REGISTRATION_RE = re.compile(r"^[A-Z0-9]{1,20}$")
 
 
 def normalize_registration(value: str) -> str:
+    # Both request formats must store the same canonical registration.
     return re.sub(r"[\s-]", "", value).upper()
 
 
-def _required_text(value: str, field: str) -> str:
-    value = " ".join(value.split())  # trim and collapse inner whitespace
-    if not value:
-        raise ValueError(f"{field} must not be blank")
+def _normalize_registration(value: str) -> str:
+    value = normalize_registration(value)
+    if not _REGISTRATION_RE.fullmatch(value):
+        raise ValueError("must be 1-20 letters or digits, with optional spaces/hyphens")
     return value
 
 
+def _strip_required(value: str) -> str:
+    value = " ".join(value.split())
+    if not value:
+        raise ValueError("must not be blank")
+    return value
+
+
+def _http_url(value: str) -> str:
+    value = value.strip()
+    if not re.match(r"^https?://\S+$", value):
+        raise ValueError("must be an http(s) URL from /v1/media/upload")
+    return value
+
+
+Make = Annotated[str, Field(max_length=50, examples=["Toyota"]), AfterValidator(_strip_required)]
+Model = Annotated[str, Field(max_length=50, examples=["Corolla"]), AfterValidator(_strip_required)]
+Color = Annotated[str, Field(max_length=30, examples=["White"]), AfterValidator(_strip_required)]
+Registration = Annotated[str, Field(max_length=30, examples=["KA 01 AB 1234"]), AfterValidator(_normalize_registration)]
+Seats = Annotated[int, Field(ge=1, le=8, examples=[4])]
+PhotoUrl = Annotated[str, Field(max_length=500), AfterValidator(_http_url)]
+
+
 class AddVehicleRequest(BaseModel):
-    photo_url: str = Field(max_length=500, examples=["http://localhost:8000/media/3f2c9a.jpg"])
-    make: str = Field(max_length=50, examples=["Maruti Suzuki"])
-    model: str = Field(max_length=50, examples=["Swift"])
+    """Photo-based snake_case contract used by the current frontend."""
+    model_config = ConfigDict(extra="forbid")
+    photo_url: PhotoUrl
+    make: Make
+    model: Model
     registration_number: str = Field(max_length=20, examples=["MH 12 AB 1234"])
-    colour: str = Field(max_length=30, examples=["Pearl White"])
-    seat_capacity: int = Field(ge=MIN_SEATS, le=MAX_SEATS, examples=[4])
-    vehicle_type: VehicleType = "car"
-
-    @field_validator("photo_url")
-    @classmethod
-    def http_url(cls, v: str) -> str:
-        v = v.strip()
-        if not re.match(r"^https?://\S+$", v):
-            raise ValueError("photo_url must be an http(s) URL from /v1/media/upload")
-        return v
-
-    @field_validator("make", "model", "colour")
-    @classmethod
-    def not_blank(cls, v: str, info) -> str:
-        return _required_text(v, info.field_name)
+    colour: Color
+    seat_capacity: Seats
+    vehicle_type: VehicleType = VehicleType.car
 
     @field_validator("registration_number")
     @classmethod
-    def valid_registration(cls, v: str) -> str:
-        v = normalize_registration(v)
-        if not (_STANDARD_REG.match(v) or _BH_REG.match(v)):
+    def valid_registration(cls, value: str) -> str:
+        value = normalize_registration(value)
+        if not (_STANDARD_REG.fullmatch(value) or _BH_REG.fullmatch(value)):
             raise ValueError("registration_number must be a valid Indian registration, e.g. MH12AB1234 or 22BH1234AA")
-        return v
+        return value
 
 
-class VehicleResponse(BaseModel):
-    id: str  # string: snowflake IDs exceed JS safe-integer range
+class AddVehicleResponse(BaseModel):
+    id: str
     photo_url: str | None
     make: str
     model: str
@@ -66,4 +89,53 @@ class VehicleResponse(BaseModel):
     seat_capacity: int
     vehicle_type: VehicleType
     is_default: bool
-    status: str
+    status: VehicleStatus
+
+
+class VehicleCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    make: Make
+    model: Model
+    color: Color
+    registrationNumber: Registration
+    seatCapacity: Seats
+    vehicleType: VehicleType
+    isDefault: bool = False
+    photoUrl: PhotoUrl | None = None
+
+
+class VehicleUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    make: Make | None = None
+    model: Model | None = None
+    color: Color | None = None
+    registrationNumber: Registration | None = None
+    seatCapacity: Seats | None = None
+    vehicleType: VehicleType | None = None
+    isDefault: bool | None = None
+    status: VehicleStatus | None = None
+    photoUrl: PhotoUrl | None = None
+
+    @model_validator(mode="after")
+    def _non_empty_and_no_nulls(self) -> "VehicleUpdate":
+        if not self.model_fields_set:
+            raise ValueError("provide at least one field to update")
+        nulls = sorted(field for field in self.model_fields_set if field != "photoUrl" and getattr(self, field) is None)
+        if nulls:
+            raise ValueError(f"cannot be null: {', '.join(nulls)}")
+        return self
+
+
+class VehicleResponse(BaseModel):
+    vehicleId: str
+    make: str
+    model: str
+    color: str
+    registrationNumber: str
+    seatCapacity: int
+    vehicleType: VehicleType
+    isDefault: bool
+    status: VehicleStatus
+    createdAt: datetime
+    updatedAt: datetime
+    photoUrl: str | None = None
