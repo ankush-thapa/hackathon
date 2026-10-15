@@ -1,14 +1,14 @@
 """Add stations, rides offered by drivers, and rider bookings.
 
-Revision ID: 0005_ride_schema
-Revises: 0004_user_session
+Revision ID: 0006_ride_schema
+Revises: 0005_session_refresh_token
 """
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects import mysql
 
-revision = "0005_ride_schema"
-down_revision = "0004_user_session"
+revision = "0006_ride_schema"
+down_revision = "0005_session_refresh_token"
 branch_labels = None
 depends_on = None
 

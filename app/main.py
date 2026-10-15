@@ -2,35 +2,33 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.auth import router as auth_router
 from app.api.hello import router as hello_router
+from app.api.media import MEDIA_URL_PATH
+from app.api.media import router as media_router
+from app.api.profile import router as profile_router
 from app.api.users import router as users_router
 from app.core.config import settings
-from app.core.ids import new_id
-from app.core.security import hash_password
+from app.db.fixtures import load_user_fixtures
 from app.db.session import SessionLocal
-from app.models import User, UserProfile
-
-SEED_USERS = ["World", "Alice", "Bob", "Charlie", "Diana"]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Entrypoints run Alembic before startup; retain the existing demo seed users.
     with SessionLocal() as db:
-        pw_hash = hash_password("Password1")
-        for name in SEED_USERS:
-            if db.query(User.id_user).filter_by(user_name=name.lower()).first() is None:
-                uid = new_id()
-                db.add(User(id_user=uid, user_name=name, password_hash=pw_hash))
-                db.flush()  # user row must exist before the profile FK
-                db.add(UserProfile(id_user=uid, full_name=name))
-        db.commit()
+        load_user_fixtures(db)
     yield
 
 
-app = FastAPI(title=settings.PROJECT_NAME, lifespan=lifespan)
+# persistAuthorization keeps the token entered under Authorize across /docs reloads.
+app = FastAPI(
+    title=settings.PROJECT_NAME,
+    lifespan=lifespan,
+    swagger_ui_parameters={"persistAuthorization": True},
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -40,6 +38,11 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
+app.include_router(profile_router)
+app.include_router(media_router)
+
+settings.MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+app.mount(MEDIA_URL_PATH, StaticFiles(directory=settings.MEDIA_DIR), name="media")
 app.include_router(hello_router)
 app.include_router(users_router)
 

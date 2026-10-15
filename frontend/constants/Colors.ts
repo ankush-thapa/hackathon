@@ -1,11 +1,14 @@
 export const Colors = {
     light: {
-        text: '#333333',
-        background: '#FCFCFC',
+        text: '#2A1A16',       // deep brown-black
+        background: '#FBF7F5', // warm off-white
         card: '#FFFFFF',
-        border: '#EBEAE5',
-        primary: '#8FA891',
-        muted: '#64748B',
-        error: '#E2725B',
+        border: '#EADFD9',     // warm sand
+        primary: '#8E4537',    // brand brick — white text on it is 6.9:1 (WCAG AA/AAA large)
+        primarySoft: '#F5E6E2', // tinted brick for selected/pressed backgrounds
+        muted: '#75625C',      // warm grey, 5.5:1 on background
+        error: '#D92D20',      // brighter red so errors stand apart from the brick primary
+        success: '#166534',    // green-800, for confirmation messages
+        successBg: '#ECFDF3',
     },
 };

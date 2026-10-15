@@ -49,10 +49,23 @@ def test_hello_unknown_user_404():
     assert client.get("/hello/999").status_code == 404
 
 
+def _auth_headers():
+    creds = {"email": "lister@example.com", "phone": "+971505550000", "password": "Secret123"}
+    client.post("/v1/auth/register", json=creds)  # 409 on reruns within the module is fine
+    token = client.post("/v1/auth/login", json={"email": creds["email"], "password": creds["password"]}).json()
+    return {"Authorization": f"Bearer {token['accessToken']}"}
+
+
 def test_list_users_returns_string_ids():
     with TestingSession() as db:
         _add_user(db, 1, "alice", "Alice")
         _add_user(db, 2, "bob", "Bob")
         db.commit()
-    ids = [u["id"] for u in client.get("/users").json()]
+    ids = [u["id"] for u in client.get("/users", headers=_auth_headers()).json()]
     assert {"1", "2"} <= set(ids)
+
+
+def test_list_users_requires_session():
+    r = client.get("/users")
+    assert r.status_code == 401
+    assert r.json()["detail"]["code"] == "token_missing"

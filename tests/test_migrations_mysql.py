@@ -85,7 +85,7 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
     with engine.connect() as connection:
         migration_context = MigrationContext.configure(connection, opts={"compare_type": True})
         assert compare_metadata(migration_context, Base.metadata) == []
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0005_ride_schema"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0006_ride_schema"
         if baseline == "legacy":
             row = connection.execute(text(
                 "SELECT u.id_user, u.user_name, u.status, p.full_name "
@@ -111,7 +111,10 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
         user_id = response.json()["userId"]
         assert isinstance(user_id, str)
         assert client.get(f"/hello/{user_id}").json() == {"message": "Hello new@example.com"}
-        assert {"id": user_id} in client.get("/users").json()
+        login = client.post("/v1/auth/login", json={"email": "new@example.com", "password": "Secret123"})
+        assert login.status_code == 200, login.text
+        headers = {"Authorization": f"Bearer {login.json()['accessToken']}"}
+        assert {"id": user_id} in client.get("/users", headers=headers).json()
         with Session(engine) as session:
             user = session.get(User, int(user_id))
             assert user.user_name is None

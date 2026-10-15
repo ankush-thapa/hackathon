@@ -1,28 +1,35 @@
 from datetime import datetime
 
-from sqlalchemy import CHAR, ForeignKey, Index, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import ForeignKey, Index, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
-from app.db.types import DateTime3, UnsignedBigInt, now_ms
+from app.db.types import DateTime3, UnsignedBigInt, now_ms, now_ms_on_update
 from app.models.user import MYSQL_TABLE_ARGS
 
 
 class UserSession(Base):
-    """One row per refresh token. Access JWTs are verified by signature only and never touch this table."""
+    """One row per login. The access token carries id_session as its `sid` claim.
+
+    expires_at is the session's absolute end; refreshing issues new tokens but never extends it.
+    """
 
     __tablename__ = "user_session"
     __table_args__ = (
-        UniqueConstraint("refresh_token_hash", name="uk_session_refresh_token"),
-        Index("idx_session_user", "id_user"),
+        Index("idx_user_session_user", "id_user", "revoked_at", "expires_at"),
         MYSQL_TABLE_ARGS,
     )
 
-    id_session: Mapped[int] = mapped_column(UnsignedBigInt, primary_key=True, autoincrement=False)  # app-generated
+    id_session: Mapped[int] = mapped_column(UnsignedBigInt, primary_key=True, autoincrement=False)
     id_user: Mapped[int] = mapped_column(
         UnsignedBigInt, ForeignKey("user.id_user", name="fk_user_session_user"), nullable=False
     )
-    refresh_token_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)  # SHA-256 hex of the refresh token
-    expires_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False)  # UTC
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime3)  # NULL = active
+    user_agent: Mapped[str | None] = mapped_column(String(255))
+    ip_address: Mapped[str | None] = mapped_column(String(45))  # fits IPv6
+    expires_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime3)  # set on logout / remote revoke
+    refresh_token_hash: Mapped[str | None] = mapped_column(String(64))  # sha256 hex of the current refresh secret
     created_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False, server_default=now_ms())
+    updated_at: Mapped[datetime] = mapped_column(DateTime3, nullable=False, server_default=now_ms_on_update())
+
+    user: Mapped["User"] = relationship(back_populates="sessions")

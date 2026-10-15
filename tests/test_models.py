@@ -1,6 +1,5 @@
 from datetime import datetime
 from decimal import Decimal
-import hashlib
 
 import pytest
 from sqlalchemy import create_engine
@@ -12,7 +11,7 @@ from app.core.ids import new_id
 from app.db.session import Base
 from app.models import (
     BookingStatus, DocType, Gender, Ride, RideBooking, RideStatus, Station, User, UserDocument, UserProfile,
-    UserSession, UserStatus,
+    UserStatus,
 )
 
 
@@ -69,22 +68,6 @@ def test_profile_and_documents_relationships(db):
     assert u.documents[0].is_active is True
     assert u.documents[0].user is u
 
-
-def test_user_session_defaults_and_unique_token_hash(db):
-    u = make_user()
-    db.add(u)
-    db.flush()
-    token_hash = hashlib.sha256(b"refresh-token").hexdigest()
-    expires_at = datetime(2030, 1, 1)
-    s = UserSession(id_session=new_id(), id_user=u.id_user, refresh_token_hash=token_hash, expires_at=expires_at)
-    db.add(s)
-    db.commit()
-    db.refresh(s)
-    assert s.revoked_at is None and s.created_at
-    assert s.expires_at == expires_at
-    db.add(UserSession(id_session=new_id(), id_user=u.id_user, refresh_token_hash=token_hash, expires_at=expires_at))
-    with pytest.raises(IntegrityError):
-        db.commit()
 
 
 def make_ride(db, **kw):
