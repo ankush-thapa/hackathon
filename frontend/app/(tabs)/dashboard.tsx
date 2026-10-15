@@ -4,7 +4,7 @@ import { useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { API_URL } from '../../constants/Config';
 
-export default function HomeScreen() {
+export default function DashboardScreen() {
     const theme = Colors.light;
     const [total, setTotal] = useState<number | null>(null);
     const [error, setError] = useState<string | null>(null);

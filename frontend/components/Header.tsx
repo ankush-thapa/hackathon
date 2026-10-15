@@ -37,9 +37,9 @@ export const Header = () => {
                         source={require('../assets/app_icon.png')}
                         style={styles.logoImage}
                         resizeMode="contain"
-                        accessibilityLabel="Hackathon Logo"
+                        accessibilityLabel="Hopr logo"
                     />
-                    <Text style={[styles.logoBrandName, { color: theme.text }]}>Hackathon</Text>
+                    <Text style={[styles.logoBrandName, { color: theme.text }]}>Hopr</Text>
                 </Pressable>
             </View>
         </View>
@@ -69,9 +69,9 @@ const styles = StyleSheet.create({
         height: 32,
     },
     logoBrandName: {
-        fontSize: 22,
-        fontWeight: '800',
-        letterSpacing: -0.5,
-        fontFamily: 'System',
+        fontSize: 24,
+        letterSpacing: -0.3,
+        fontFamily: 'Fredoka_700Bold',
+        transform: [{ skewX: '-10deg' }], // slanted like the logo
     },
 });
