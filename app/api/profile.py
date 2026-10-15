@@ -1,16 +1,37 @@
 from fastapi import APIRouter, Response, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user_id
 from app.db.session import get_db
 from app.repositories.profile_repo import ProfileRepository, UserNotFoundError
-from app.schemas.profile import SaveProfileRequest, ProfileResponse
-from app.services.profile_service import ProfileService
+from app.schemas.profile import MyProfileResponse, ProfileResponse, SaveProfileRequest
+from app.services.profile_service import ProfileNotFoundError, ProfileService
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
 
 def get_profile_service(db: Session = Depends(get_db)) -> ProfileService:
     return ProfileService(ProfileRepository(db))
+
+
+@router.get(
+    "/profile",
+    response_model=MyProfileResponse,
+    summary="Get my profile",
+    responses={
+        401: {"description": "Missing, invalid, expired, or revoked access token"},
+        404: {"description": "No profile saved yet: create one with POST /v1/auth/profile"},
+    },
+)
+def get_profile(
+    current_user_id: int = Depends(get_current_user_id),
+    service: ProfileService = Depends(get_profile_service),
+):
+    """The logged-in user's profile (Authorization: Bearer <accessToken>), with `age` and contact details."""
+    try:
+        return service.get(current_user_id)
+    except ProfileNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail="profile not found") from None
 
 
 @router.post("/profile", response_model=ProfileResponse, status_code=status.HTTP_201_CREATED)
