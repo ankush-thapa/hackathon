@@ -1,97 +1,126 @@
 import React, { useState } from 'react';
 import {
     ActivityIndicator,
+    Image,
     KeyboardAvoidingView,
     Platform,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
-    TextInput,
-    TextInputProps,
     View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import { PrimaryButton } from '../components/PrimaryButton';
+import { TextField } from '../components/TextField';
 import { Colors } from '../constants/Colors';
-import { CommuteRole, Profile, saveProfile } from '../data/profile';
+import { Gender, LIMITS } from '../data/profile';
+import { MAX_PHOTO_BYTES, PHOTO_TYPES, ProfileError, saveProfile, uploadPhoto } from '../services/profile';
 
 const theme = Colors.light;
+const MIN_AGE = 18;
 
-type Form = {
-    fullName: string;
-    phone: string;
-    gender: NonNullable<Profile['gender']> | '';
-    company: string;
-    role: CommuteRole | '';
-    homeArea: string;
-    workArea: string;
-    leaveHomeAt: string;
-    leaveWorkAt: string;
-    makeModel: string;
-    color: string;
-    plate: string;
-    seats: string;
-};
+type Form = { fullName: string; dateOfBirth: string; gender: Gender | ''; about: string };
+const EMPTY: Form = { fullName: '', dateOfBirth: '', gender: '', about: '' };
 
-const EMPTY: Form = {
-    fullName: '', phone: '', gender: '', company: '', role: '',
-    homeArea: '', workArea: '', leaveHomeAt: '08:30', leaveWorkAt: '18:00',
-    makeModel: '', color: '', plate: '', seats: '3',
-};
+const GENDER_OPTIONS: { value: Gender; label: string }[] = [
+    { value: 'female', label: 'Female' },
+    { value: 'male', label: 'Male' },
+    { value: 'other', label: 'Other' },
+    { value: 'prefer_not_to_say', label: 'Prefer not to say' },
+];
 
-const TIME_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
+function parseDob(value: string): Date | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!m) return null;
+    const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    const date = new Date(y, mo - 1, d);
+    return date.getFullYear() === y && date.getMonth() === mo - 1 && date.getDate() === d ? date : null;
+}
+
+function ageOn(dob: Date, today = new Date()) {
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+    return age;
+}
 
 function validate(f: Form) {
     const e: Partial<Record<keyof Form, string>> = {};
-    if (f.fullName.trim().length < 2) e.fullName = 'Enter your full name';
-    if (f.phone.replace(/\D/g, '').length < 8) e.phone = 'Enter a valid phone number';
-    if (!f.company.trim()) e.company = 'Enter your company';
-    if (!f.role) e.role = 'Choose how you commute';
-    if (!f.homeArea.trim()) e.homeArea = 'Enter your home area';
-    if (!f.workArea.trim()) e.workArea = 'Enter your office area';
-    if (!TIME_RE.test(f.leaveHomeAt)) e.leaveHomeAt = 'Use HH:MM (24h)';
-    if (!TIME_RE.test(f.leaveWorkAt)) e.leaveWorkAt = 'Use HH:MM (24h)';
-    if (f.role === 'driver' || f.role === 'both') {
-        if (!f.makeModel.trim()) e.makeModel = 'Enter your car';
-        if (!f.color.trim()) e.color = 'Enter the colour';
-        if (!f.plate.trim()) e.plate = 'Enter the plate number';
-        const seats = Number(f.seats);
-        if (!Number.isInteger(seats) || seats < 1 || seats > 7) e.seats = '1–7 seats';
+    const name = f.fullName.trim();
+    if (!name) e.fullName = 'Enter your full name';
+    else if (name.length > LIMITS.fullName) e.fullName = `Keep it under ${LIMITS.fullName} characters`;
+
+    const dobText = f.dateOfBirth.trim();
+    if (dobText) {
+        const dob = parseDob(dobText);
+        if (!dob) e.dateOfBirth = 'Use YYYY-MM-DD, e.g. 1995-04-21';
+        else if (dob >= new Date()) e.dateOfBirth = 'Date of birth must be in the past';
+        else if (ageOn(dob) < MIN_AGE) e.dateOfBirth = `You must be at least ${MIN_AGE}`;
     }
+    if (f.about.trim().length > LIMITS.about) e.about = `Keep it under ${LIMITS.about} characters`;
     return e;
 }
 
 export default function ProfileSetupScreen() {
     const router = useRouter();
     const [form, setForm] = useState<Form>(EMPTY);
+    const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+    const [uploading, setUploading] = useState(false);
+    const [photoError, setPhotoError] = useState<string | null>(null);
     const [submitted, setSubmitted] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
 
     const errors = validate(form);
-    const showErr = (k: keyof Form) => (submitted ? errors[k] : undefined);
+    const err = (k: keyof Form) => (submitted ? errors[k] : undefined);
     const set = <K extends keyof Form>(k: K) => (v: Form[K]) => setForm(prev => ({ ...prev, [k]: v }));
-    const isDriver = form.role === 'driver' || form.role === 'both';
+    const initials = form.fullName.trim().split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('');
+
+    const pickPhoto = async () => {
+        setPhotoError(null);
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+        if (result.canceled || !result.assets?.[0]) return;
+        const asset = result.assets[0];
+        if (asset.mimeType && !PHOTO_TYPES.includes(asset.mimeType)) return setPhotoError('Use a JPEG, PNG or WebP image');
+        if (asset.fileSize && asset.fileSize > MAX_PHOTO_BYTES) return setPhotoError('Choose an image under 5 MB');
+
+        setUploading(true);
+        try {
+            setPhotoUrl(await uploadPhoto(asset));
+        } catch (e) {
+            setPhotoError(e instanceof ProfileError ? e.message : 'Upload failed. Please try again.');
+        } finally {
+            setUploading(false);
+        }
+    };
 
     const onSubmit = async () => {
         setSubmitted(true);
-        if (Object.keys(errors).length) return;
+        setFormError(null);
+        if (Object.keys(errors).length || uploading) return;
         setSaving(true);
-        await saveProfile({
-            fullName: form.fullName.trim(),
-            phone: form.phone.trim(),
-            gender: form.gender || undefined,
-            company: form.company.trim(),
-            role: form.role as CommuteRole,
-            homeArea: form.homeArea.trim(),
-            workArea: form.workArea.trim(),
-            leaveHomeAt: form.leaveHomeAt,
-            leaveWorkAt: form.leaveWorkAt,
-            vehicle: isDriver
-                ? { makeModel: form.makeModel.trim(), color: form.color.trim(), plate: form.plate.trim().toUpperCase(), seats: Number(form.seats) }
-                : undefined,
-        });
-        setSaving(false);
-        router.replace('/rides');
+        try {
+            await saveProfile({
+                fullName: form.fullName.trim(),
+                photoUrl,
+                about: form.about.trim() || null,
+                dateOfBirth: form.dateOfBirth.trim() || null,
+                gender: form.gender || null,
+            });
+            router.replace('/dashboard');
+        } catch (e) {
+            setFormError(e instanceof ProfileError ? e.message : 'Something went wrong. Please try again.');
+            if (e instanceof ProfileError && e.status === 401) router.replace('/login');
+        } finally {
+            setSaving(false);
+        }
     };
 
     return (
@@ -99,194 +128,137 @@ export default function ProfileSetupScreen() {
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
                 <View style={styles.main}>
                     <Text style={styles.title}>Set up your profile</Text>
-                    <Text style={styles.subtitle}>Tell co-workers who you are and how you commute so we can match you with rides.</Text>
+                    <Text style={styles.subtitle}>This is what co-riders see when you share a ride.</Text>
 
-                    <Section title="About you">
-                        <Field label="Full name" value={form.fullName} onChangeText={set('fullName')} error={showErr('fullName')} placeholder="e.g. Ritesh Bisht" autoCapitalize="words" textContentType="name" />
-                        <Field label="Phone" value={form.phone} onChangeText={set('phone')} error={showErr('phone')} placeholder="+971 50 123 4567" keyboardType="phone-pad" textContentType="telephoneNumber" />
-                        <Field label="Company" value={form.company} onChangeText={set('company')} error={showErr('company')} placeholder="e.g. Noon" />
-                        <Label text="Gender" optional />
-                        <Chips
-                            options={[{ value: 'female', label: 'Female' }, { value: 'male', label: 'Male' }, { value: 'other', label: 'Prefer not to say' }]}
-                            value={form.gender}
-                            onChange={v => set('gender')(form.gender === v ? '' : v)}
-                        />
-                    </Section>
-
-                    <Section title="How do you commute?">
-                        <Chips
-                            options={[
-                                { value: 'rider', label: 'I need rides' },
-                                { value: 'driver', label: 'I offer rides' },
-                                { value: 'both', label: 'Both' },
-                            ]}
-                            value={form.role}
-                            onChange={set('role')}
-                        />
-                        {showErr('role') && <Text style={styles.error}>{showErr('role')}</Text>}
-                    </Section>
-
-                    <Section title="Your daily route">
-                        <Field label="Home area" value={form.homeArea} onChangeText={set('homeArea')} error={showErr('homeArea')} placeholder="e.g. Dubai Marina" />
-                        <Field label="Office area" value={form.workArea} onChangeText={set('workArea')} error={showErr('workArea')} placeholder="e.g. Dubai Internet City" />
-                        <View style={styles.row}>
-                            <View style={{ flex: 1 }}>
-                                <Field label="Leave home" value={form.leaveHomeAt} onChangeText={set('leaveHomeAt')} error={showErr('leaveHomeAt')} placeholder="08:30" keyboardType="numbers-and-punctuation" maxLength={5} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Field label="Leave office" value={form.leaveWorkAt} onChangeText={set('leaveWorkAt')} error={showErr('leaveWorkAt')} placeholder="18:00" keyboardType="numbers-and-punctuation" maxLength={5} />
+                    <View style={styles.card}>
+                        <View style={styles.photoRow}>
+                            <Pressable
+                                onPress={pickPhoto}
+                                disabled={uploading}
+                                accessibilityRole="button"
+                                accessibilityLabel={photoUrl ? 'Change profile photo' : 'Add profile photo'}
+                                style={({ pressed }) => [styles.avatar, pressed && { opacity: 0.8 }]}
+                            >
+                                {photoUrl ? (
+                                    <Image source={{ uri: photoUrl }} style={styles.avatarImg} />
+                                ) : (
+                                    <Text style={styles.avatarText}>{initials || '+'}</Text>
+                                )}
+                                {uploading && (
+                                    <View style={styles.avatarOverlay}>
+                                        <ActivityIndicator color="#FFFFFF" />
+                                    </View>
+                                )}
+                            </Pressable>
+                            <View style={{ flex: 1, gap: 4 }}>
+                                <Text style={styles.label}>Profile photo <Text style={styles.optional}>(optional)</Text></Text>
+                                <Text style={styles.hint}>JPEG, PNG or WebP, up to 5 MB.</Text>
+                                <View style={styles.photoActions}>
+                                    <Pressable onPress={pickPhoto} disabled={uploading} hitSlop={6} accessibilityRole="button">
+                                        <Text style={styles.link}>{uploading ? 'Uploading…' : photoUrl ? 'Change photo' : 'Upload photo'}</Text>
+                                    </Pressable>
+                                    {photoUrl && !uploading && (
+                                        <Pressable onPress={() => setPhotoUrl(null)} hitSlop={6} accessibilityRole="button">
+                                            <Text style={[styles.link, { color: theme.muted }]}>Remove</Text>
+                                        </Pressable>
+                                    )}
+                                </View>
+                                {photoError && <Text style={styles.error}>{photoError}</Text>}
                             </View>
                         </View>
-                    </Section>
 
-                    {isDriver && (
-                        <Section title="Your car">
-                            <Field label="Make & model" value={form.makeModel} onChangeText={set('makeModel')} error={showErr('makeModel')} placeholder="e.g. Toyota Camry" />
-                            <View style={styles.row}>
-                                <View style={{ flex: 1 }}>
-                                    <Field label="Colour" value={form.color} onChangeText={set('color')} error={showErr('color')} placeholder="White" />
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Field label="Seats offered" value={form.seats} onChangeText={set('seats')} error={showErr('seats')} placeholder="3" keyboardType="number-pad" maxLength={1} />
-                                </View>
+                        <TextField
+                            label="Full name"
+                            value={form.fullName}
+                            onChangeText={set('fullName')}
+                            error={err('fullName')}
+                            placeholder="e.g. Ritesh Bisht"
+                            autoCapitalize="words"
+                            textContentType="name"
+                            autoComplete="name"
+                            maxLength={LIMITS.fullName}
+                        />
+                        <TextField
+                            label="Date of birth (optional)"
+                            value={form.dateOfBirth}
+                            onChangeText={set('dateOfBirth')}
+                            error={err('dateOfBirth')}
+                            placeholder="YYYY-MM-DD"
+                            keyboardType="numbers-and-punctuation"
+                            maxLength={10}
+                        />
+                        <View style={{ gap: 8 }}>
+                            <Text style={styles.label}>Gender <Text style={styles.optional}>(optional)</Text></Text>
+                            <View style={styles.chips}>
+                                {GENDER_OPTIONS.map(o => {
+                                    const active = form.gender === o.value;
+                                    return (
+                                        <Pressable
+                                            key={o.value}
+                                            onPress={() => set('gender')(active ? '' : o.value)}
+                                            accessibilityRole="radio"
+                                            accessibilityState={{ selected: active }}
+                                            style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.75 }]}
+                                        >
+                                            <Text style={[styles.chipText, active && { color: '#FFFFFF' }]}>{o.label}</Text>
+                                        </Pressable>
+                                    );
+                                })}
                             </View>
-                            <Field label="Plate number" value={form.plate} onChangeText={set('plate')} error={showErr('plate')} placeholder="e.g. Dubai A 12345" autoCapitalize="characters" />
-                        </Section>
-                    )}
+                        </View>
+                        <View>
+                            <TextField
+                                label="About you (optional)"
+                                value={form.about}
+                                onChangeText={set('about')}
+                                error={err('about')}
+                                placeholder="Music taste, chatty or quiet, where you work…"
+                                autoCapitalize="sentences"
+                                autoCorrect
+                                multiline
+                                maxLength={LIMITS.about}
+                                style={{ minHeight: 88, textAlignVertical: 'top' }}
+                            />
+                            <Text style={styles.counter}>{form.about.length}/{LIMITS.about}</Text>
+                        </View>
+                    </View>
 
-                    <Pressable
-                        onPress={onSubmit}
-                        disabled={saving}
-                        accessibilityRole="button"
-                        style={({ pressed }) => [styles.button, (pressed || saving) && { opacity: 0.8 }]}
-                    >
-                        {saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.buttonText}>Save and continue</Text>}
+                    {formError && <Text style={[styles.error, { textAlign: 'center' }]}>{formError}</Text>}
+                    <PrimaryButton title="Save and continue" onPress={onSubmit} loading={saving} disabled={uploading} />
+                    <Pressable onPress={() => router.replace('/dashboard')} hitSlop={8} style={styles.skip} accessibilityRole="button">
+                        <Text style={styles.skipText}>Skip for now</Text>
                     </Pressable>
-                    {submitted && Object.keys(errors).length > 0 && (
-                        <Text style={[styles.error, { textAlign: 'center' }]}>Please fix the highlighted fields.</Text>
-                    )}
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
     );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-    return (
-        <View style={styles.card}>
-            <Text style={styles.sectionTitle}>{title}</Text>
-            {children}
-        </View>
-    );
-}
-
-function Label({ text, optional }: { text: string; optional?: boolean }) {
-    return (
-        <Text style={styles.label}>
-            {text}{optional && <Text style={styles.optional}>  Optional</Text>}
-        </Text>
-    );
-}
-
-function Field({ label, error, ...props }: TextInputProps & { label: string; error?: string }) {
-    const [focused, setFocused] = useState(false);
-    return (
-        <View style={{ gap: 6 }}>
-            <Label text={label} />
-            <TextInput
-                {...props}
-                onFocus={e => { setFocused(true); props.onFocus?.(e); }}
-                onBlur={e => { setFocused(false); props.onBlur?.(e); }}
-                placeholderTextColor="#A0A7B1"
-                accessibilityLabel={label}
-                style={[
-                    styles.input,
-                    focused && { borderColor: theme.primary },
-                    !!error && { borderColor: theme.error },
-                ]}
-            />
-            {error && <Text style={styles.error}>{error}</Text>}
-        </View>
-    );
-}
-
-function Chips<T extends string>({ options, value, onChange }: {
-    options: { value: T; label: string }[];
-    value: T | '';
-    onChange: (v: T) => void;
-}) {
-    return (
-        <View style={styles.chips}>
-            {options.map(o => {
-                const active = value === o.value;
-                return (
-                    <Pressable
-                        key={o.value}
-                        onPress={() => onChange(o.value)}
-                        accessibilityRole="radio"
-                        accessibilityState={{ selected: active }}
-                        style={({ pressed }) => [styles.chip, active && styles.chipActive, pressed && { opacity: 0.75 }]}
-                    >
-                        <Text style={[styles.chipText, active && { color: '#FFFFFF' }]}>{o.label}</Text>
-                    </Pressable>
-                );
-            })}
-        </View>
-    );
-}
-
 const styles = StyleSheet.create({
     scroll: { flexGrow: 1, paddingBottom: 40 },
-    main: {
-        width: '100%',
-        maxWidth: 600,
-        alignSelf: 'center',
-        paddingHorizontal: 24,
-        paddingTop: 32,
-        gap: 16,
-    },
+    main: { width: '100%', maxWidth: 600, alignSelf: 'center', paddingHorizontal: 24, paddingTop: 32, gap: 16 },
     title: { fontSize: 28, fontWeight: '800', color: theme.text },
     subtitle: { fontSize: 15, color: theme.muted, marginTop: -8 },
-    card: {
-        backgroundColor: theme.card,
-        borderColor: theme.border,
-        borderWidth: 1,
-        borderRadius: 14,
-        padding: 16,
-        gap: 14,
-    },
-    sectionTitle: { fontSize: 17, fontWeight: '700', color: theme.text },
+    card: { backgroundColor: theme.card, borderColor: theme.border, borderWidth: 1, borderRadius: 14, padding: 16, gap: 18 },
     label: { fontSize: 14, fontWeight: '600', color: theme.text },
-    optional: { fontSize: 12, fontWeight: '500', color: theme.muted },
-    input: {
-        borderWidth: 1,
-        borderColor: theme.border,
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: Platform.OS === 'ios' ? 12 : 10,
-        fontSize: 16,
-        color: theme.text,
-        backgroundColor: '#FFFFFF',
-    },
+    optional: { fontSize: 13, fontWeight: '500', color: theme.muted },
+    hint: { fontSize: 13, color: theme.muted },
+    link: { fontSize: 14, fontWeight: '700', color: theme.primary },
     error: { fontSize: 13, color: theme.error },
-    row: { flexDirection: 'row', gap: 12 },
-    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-    chip: {
-        paddingVertical: 8,
-        paddingHorizontal: 14,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: theme.border,
-        backgroundColor: '#FFFFFF',
+    counter: { fontSize: 12, color: theme.muted, textAlign: 'right', marginTop: 4 },
+    photoRow: { flexDirection: 'row', alignItems: 'center', gap: 16 },
+    photoActions: { flexDirection: 'row', gap: 16, marginTop: 2 },
+    avatar: {
+        width: 76, height: 76, borderRadius: 38,
+        backgroundColor: theme.primary, alignItems: 'center', justifyContent: 'center', overflow: 'hidden',
     },
+    avatarImg: { width: 76, height: 76 },
+    avatarText: { color: '#FFFFFF', fontSize: 26, fontWeight: '700' },
+    avatarOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
+    chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    chip: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, borderWidth: 1, borderColor: theme.border, backgroundColor: '#FFFFFF' },
     chipActive: { backgroundColor: theme.primary, borderColor: theme.primary },
     chipText: { fontSize: 14, fontWeight: '600', color: theme.text },
-    button: {
-        backgroundColor: theme.primary,
-        borderRadius: 12,
-        paddingVertical: 14,
-        alignItems: 'center',
-        marginTop: 4,
-    },
-    buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    skip: { alignSelf: 'center', paddingVertical: 4 },
+    skipText: { fontSize: 15, fontWeight: '600', color: theme.muted },
 });
