@@ -37,6 +37,10 @@ class CancelBookingRequest(BaseModel):
         return (value.strip() or None) if value is not None else None
 
 
+class RejectBookingRequest(CancelBookingRequest):
+    """Same shape as a cancel: an optional reason shown to the rider."""
+
+
 class BookingResponse(BaseModel):
     id_booking: str
     id_ride: str
@@ -47,6 +51,7 @@ class BookingResponse(BaseModel):
     total_amount: Decimal
     rider_note: str | None
     status: BookingStatus
+    reject_reason: str | None = None
     cancel_reason: str | None = None
     responded_at: datetime | None = None  # when the driver approved
     cancelled_at: datetime | None = None

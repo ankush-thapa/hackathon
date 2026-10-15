@@ -14,9 +14,11 @@ from app.repositories.ride_repo import (
     VehicleInactiveError,
     VehicleNotFoundError,
 )
+from app.repositories.notification_repo import NotificationRepository
 from app.repositories.ride_detail_repo import RideDetailRepository
 from app.schemas.ride import OfferRideRequest, OfferRideResponse, RideListResponse
 from app.schemas.ride_detail import RideDetailResponse
+from app.services.notification_service import NotificationService
 from app.services.ride_detail_service import RideDetailService, RideNotFoundError
 from app.services.ride_service import DepartureInPastError, InvalidCursorError, RideService
 
@@ -24,7 +26,7 @@ router = APIRouter(prefix="/v1/rides", tags=["rides"])
 
 
 def get_ride_service(db: Session = Depends(get_db)) -> RideService:
-    return RideService(RideRepository(db))
+    return RideService(RideRepository(db), NotificationService(NotificationRepository(db)))
 
 
 @router.post(

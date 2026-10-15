@@ -86,7 +86,7 @@ def test_migration_preserves_registration_and_matches_models(mysql_database, bas
     with engine.connect() as connection:
         migration_context = MigrationContext.configure(connection, opts={"compare_type": True})
         assert compare_metadata(migration_context, Base.metadata) == []
-        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0009_notification"
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one() == "0010_notification_ride_created"
         stations = connection.execute(text("SELECT id_station, station_name FROM station ORDER BY id_station")).all()
         assert len(stations) == 26 and tuple(stations[0]) == (1, "Cyber City")
         assert tuple(stations[16]) == (17, "Medanta – The Medicity")
