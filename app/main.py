@@ -46,12 +46,9 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(rides_router)
-<<<<<<< HEAD
 app.include_router(notifications_router)
-=======
 app.include_router(bookings_router)
 app.include_router(me_router)
->>>>>>> origin/main
 app.include_router(stations_router)
 app.include_router(media_router)
 app.include_router(vehicles_router)
