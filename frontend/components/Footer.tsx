@@ -51,17 +51,19 @@ const styles = StyleSheet.create({
     footerContainer: {
         width: '100%',
         maxWidth: 1200,
-        paddingHorizontal: 24,
+        paddingHorizontal: 12,
         alignItems: 'center',
         justifyContent: 'center',
     },
     tabs: {
         flexDirection: 'row',
-        gap: 8,
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        gap: 4,
     },
     tab: {
         paddingVertical: 8,
-        paddingHorizontal: 20,
+        paddingHorizontal: 14,
         borderRadius: 20,
     },
     tabLabel: {

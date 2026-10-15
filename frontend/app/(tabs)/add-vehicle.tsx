@@ -1,26 +1,27 @@
 import React, { useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { Link } from 'expo-router';
 import { Colors } from '../../constants/Colors';
 import { PrimaryButton } from '../../components/PrimaryButton';
 import { TextField } from '../../components/TextField';
-import { VehicleCard } from '../../components/VehicleCard';
-import { Vehicle, compactRegistration, isValidRegistration } from '../../types/vehicle';
+import { useVehicles } from '../../context/VehiclesContext';
+import { compactRegistration, isValidRegistration } from '../../types/vehicle';
 
 type Errors = Partial<Record<'name' | 'number' | 'color' | 'photo', string>>;
 
 const normalizeNumber = (value: string) => value.toUpperCase().replace(/\s+/g, ' ').trimStart();
 
-export default function VehiclesScreen() {
+export default function AddVehicleScreen() {
     const theme = Colors.light;
 
-    // Frontend only: vehicles live in memory until a backend endpoint exists.
-    const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+    const { vehicles, addVehicle: saveVehicle } = useVehicles();
     const [name, setName] = useState('');
     const [number, setNumber] = useState('');
     const [color, setColor] = useState('');
     const [photoUri, setPhotoUri] = useState<string | null>(null);
     const [errors, setErrors] = useState<Errors>({});
+    const [justAdded, setJustAdded] = useState<string | null>(null);
 
     const pickPhoto = async () => {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -58,31 +59,29 @@ export default function VehiclesScreen() {
         setErrors(next);
         if (Object.keys(next).length > 0 || !photoUri) return;
 
-        setVehicles(prev => [
-            ...prev,
-            {
-                id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                name: name.trim(),
-                number: number.trim(),
-                color: color.trim(),
-                photoUri,
-            },
-        ]);
+        const added = saveVehicle({ name: name.trim(), number: number.trim(), color: color.trim(), photoUri });
+        setJustAdded(added.name);
         setName('');
         setNumber('');
         setColor('');
         setPhotoUri(null);
     };
 
-    const deleteVehicle = (id: string) => setVehicles(prev => prev.filter(v => v.id !== id));
-
     return (
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
             <View style={styles.main}>
-                <Text style={[styles.title, { color: theme.text }]}>My vehicles</Text>
-                <Text style={[styles.subtitle, { color: theme.muted }]}>Add the vehicles you'll offer rides in.</Text>
+                <Text style={[styles.title, { color: theme.text }]}>Add a vehicle</Text>
+                <Text style={[styles.subtitle, { color: theme.muted }]}>Add each vehicle you'll offer rides in. You can add as many as you like.</Text>
 
-                {/* Add form */}
+                {justAdded && (
+                    <View style={[styles.success, { borderColor: theme.primary }]}>
+                        <Text style={[styles.successText, { color: theme.text }]}>
+                            {justAdded} added. Add another, or{' '}
+                            <Link href="/my-vehicles" style={[styles.link, { color: theme.primary }]}>view my vehicles</Link>.
+                        </Text>
+                    </View>
+                )}
+
                 <View style={[styles.form, { backgroundColor: theme.card, borderColor: theme.border }]}>
                     <View style={styles.photoGroup}>
                         <Text style={[styles.label, { color: theme.text }]}>Photo</Text>
@@ -115,7 +114,7 @@ export default function VehiclesScreen() {
                     <TextField
                         label="Car name"
                         value={name}
-                        onChangeText={v => { setName(v); setErrors(p => ({ ...p, name: undefined })); }}
+                        onChangeText={v => { setName(v); setJustAdded(null); setErrors(p => ({ ...p, name: undefined })); }}
                         placeholder="e.g. Maruti Swift"
                         autoCapitalize="words"
                         maxLength={40}
@@ -148,15 +147,6 @@ export default function VehiclesScreen() {
                     </View>
                 </View>
 
-                {/* List */}
-                <Text style={[styles.sectionTitle, { color: theme.text }]}>
-                    Added vehicles {vehicles.length > 0 ? `(${vehicles.length})` : ''}
-                </Text>
-                {vehicles.length === 0 ? (
-                    <Text style={{ color: theme.muted }}>No vehicles yet. Add one above.</Text>
-                ) : (
-                    vehicles.map(v => <VehicleCard key={v.id} vehicle={v} onDelete={deleteVehicle} />)
-                )}
             </View>
         </ScrollView>
     );
@@ -232,10 +222,13 @@ const styles = StyleSheet.create({
     submit: {
         marginTop: 6,
     },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        marginTop: 16,
+    success: {
+        borderWidth: 1.5,
+        borderRadius: 12,
+        padding: 14,
+    },
+    successText: {
+        fontSize: 15,
     },
     pressed: {
         opacity: 0.75,

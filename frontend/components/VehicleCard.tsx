@@ -20,7 +20,7 @@ export const VehicleCard = ({ vehicle, onDelete }: Props) => {
             <View style={styles.info}>
                 <Text style={[styles.name, { color: theme.text }]} numberOfLines={1}>{vehicle.name}</Text>
                 <Text style={[styles.number, { color: theme.text }]}>{vehicle.number}</Text>
-                <Text style={[styles.colorText, { color: theme.muted }]}>{vehicle.color}</Text>
+                <Text style={[styles.colorText, { color: theme.muted }]} numberOfLines={1}>Colour: {vehicle.color}</Text>
             </View>
 
             {confirming ? (
@@ -61,8 +61,8 @@ const styles = StyleSheet.create({
         borderRadius: 12,
     },
     photo: {
-        width: 72,
-        height: 72,
+        width: 56,
+        height: 56,
         borderRadius: 10,
         backgroundColor: '#EEE',
     },
