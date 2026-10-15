@@ -1,0 +1,85 @@
+{
+  "defaultPassword": "Password1",
+  "users": [
+    {
+      "idUser": "236355937651130368",
+      "userName": "world",
+      "email": null,
+      "phoneNumber": null,
+      "profile": {
+        "fullName": "World",
+        "gender": null
+      }
+    },
+    {
+      "idUser": "236355937667907584",
+      "userName": "alice",
+      "email": null,
+      "phoneNumber": null,
+      "profile": {
+        "fullName": "Alice",
+        "gender": null
+      }
+    },
+    {
+      "idUser": "236355937684684800",
+      "userName": "bob",
+      "email": null,
+      "phoneNumber": null,
+      "profile": {
+        "fullName": "Bob",
+        "gender": null
+      }
+    },
+    {
+      "idUser": "236355937697267712",
+      "userName": "charlie",
+      "email": null,
+      "phoneNumber": null,
+      "profile": {
+        "fullName": "Charlie",
+        "gender": null
+      }
+    },
+    {
+      "idUser": "236355937709850624",
+      "userName": "diana",
+      "email": null,
+      "phoneNumber": null,
+      "profile": {
+        "fullName": "Diana",
+        "gender": null
+      }
+    },
+    {
+      "idUser": "236357292134498304",
+      "userName": null,
+      "email": "amar@gmail.com",
+      "phoneNumber": "+971501234567",
+      "profile": {
+        "fullName": "Amar Kumar",
+        "gender": "male"
+      }
+    },
+    {
+      "idUser": "236357381640945664",
+      "userName": null,
+      "email": "amar1@gmail.com",
+      "phoneNumber": "+971501234568",
+      "profile": {
+        "fullName": "Amar One",
+        "gender": null
+      }
+    },
+    {
+      "idUser": "236361952308232192",
+      "userName": null,
+      "email": "jane1@example.com",
+      "phoneNumber": "+971501234668",
+      "profile": {
+        "fullName": "Jane One",
+        "gender": "female"
+      }
+    }
+  ]
+}

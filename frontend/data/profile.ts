@@ -1,32 +1,19 @@
-// In-memory profile store. Swap for an API call (e.g. PUT /me/profile) once the backend has auth.
+// Mirrors the backend profile contract:
+// app/models/user_profile.py (columns) and app/schemas/profile.py (SaveProfileRequest / ProfileResponse).
 
-export type CommuteRole = 'rider' | 'driver' | 'both';
+export const GENDERS = ['male', 'female', 'other', 'prefer_not_to_say'] as const;
+export type Gender = (typeof GENDERS)[number];
 
-export type Vehicle = {
-    makeModel: string;
-    color: string;
-    plate: string;
-    seats: number;
-};
+// Column / schema limits, so the form validates the same way the API will.
+export const LIMITS = { fullName: 100, photoUrl: 500, about: 500 } as const;
 
 export type Profile = {
+    userId: string;
     fullName: string;
-    phone: string;
-    gender?: 'male' | 'female' | 'other';
-    company: string;
-    role: CommuteRole;
-    homeArea: string;
-    workArea: string;
-    leaveHomeAt: string; // "08:30"
-    leaveWorkAt: string; // "18:00"
-    vehicle?: Vehicle;
+    photoUrl: string | null;
+    about: string | null;
+    dateOfBirth: string | null; // YYYY-MM-DD
+    gender: Gender | null;
 };
 
-let current: Profile | null = null;
-
-export const getProfile = () => current;
-
-export const saveProfile = async (profile: Profile) => {
-    current = profile;
-    return profile;
-};
+export type ProfileInput = Omit<Profile, 'userId'>;

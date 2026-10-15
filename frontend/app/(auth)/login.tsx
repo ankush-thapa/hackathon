@@ -40,7 +40,7 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
-            await login(identifier, password); // stores the access token (services/session.ts)
+            await login(identifier, password);
             router.replace('/dashboard');
         } catch (err) {
             setFormError(err instanceof AuthError ? err.message : 'Something went wrong. Please try again.');
