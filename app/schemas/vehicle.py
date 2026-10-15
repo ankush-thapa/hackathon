@@ -1,3 +1,4 @@
+<<<<<<< Updated upstream
 import re
 from typing import Literal
 
@@ -67,3 +68,95 @@ class VehicleResponse(BaseModel):
     vehicle_type: VehicleType
     is_default: bool
     status: str
+=======
+import enum
+import re
+from datetime import datetime
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, Field, model_validator
+
+_REGISTRATION_RE = re.compile(r"^[A-Z0-9-]{1,20}$")
+
+
+class VehicleType(str, enum.Enum):
+    hatchback = "hatchback"
+    sedan = "sedan"
+    suv = "suv"
+    bike = "bike"
+
+
+class VehicleStatus(str, enum.Enum):
+    """Settable statuses. `deleted` is only reachable through DELETE."""
+
+    active = "active"
+    inactive = "inactive"
+
+
+def _normalize_registration(v: str) -> str:
+    v = "".join(v.split()).upper()  # same rule as Vehicle._normalize_registration_number
+    if not _REGISTRATION_RE.fullmatch(v):
+        raise ValueError("must be 1-20 letters, digits or '-'")
+    return v
+
+
+def _strip_required(v: str) -> str:
+    v = v.strip()
+    if not v:
+        raise ValueError("must not be blank")
+    return v
+
+
+# Shared field types: trimmed non-blank text, and registration numbers without spaces, uppercased.
+Make = Annotated[str, Field(max_length=50, examples=["Toyota"]), AfterValidator(_strip_required)]
+Model = Annotated[str, Field(max_length=50, examples=["Corolla"]), AfterValidator(_strip_required)]
+Color = Annotated[str, Field(max_length=30, examples=["White"]), AfterValidator(_strip_required)]
+Registration = Annotated[str, Field(max_length=30, examples=["KA 01 AB 1234"]), AfterValidator(_normalize_registration)]
+Seats = Annotated[int, Field(ge=1, le=8, examples=[4])]
+
+
+class VehicleCreate(BaseModel):
+    make: Make
+    model: Model
+    color: Color
+    registrationNumber: Registration
+    seatCapacity: Seats
+    vehicleType: VehicleType
+    isDefault: bool = False  # the user's first vehicle becomes default regardless
+
+
+class VehicleUpdate(BaseModel):
+    """Send only the fields to change."""
+
+    make: Make | None = None
+    model: Model | None = None
+    color: Color | None = None
+    registrationNumber: Registration | None = None
+    seatCapacity: Seats | None = None
+    vehicleType: VehicleType | None = None
+    isDefault: bool | None = None
+    status: VehicleStatus | None = None
+
+    @model_validator(mode="after")
+    def _non_empty_and_no_nulls(self) -> "VehicleUpdate":
+        if not self.model_fields_set:
+            raise ValueError("provide at least one field to update")
+        nulls = sorted(f for f in self.model_fields_set if getattr(self, f) is None)
+        if nulls:
+            raise ValueError(f"cannot be null: {', '.join(nulls)}")
+        return self
+
+
+class VehicleResponse(BaseModel):
+    vehicleId: str  # string: snowflake IDs exceed JS safe-integer range
+    make: str
+    model: str
+    color: str
+    registrationNumber: str
+    seatCapacity: int
+    vehicleType: VehicleType
+    isDefault: bool
+    status: VehicleStatus
+    createdAt: datetime  # UTC
+    updatedAt: datetime  # UTC
+>>>>>>> Stashed changes
